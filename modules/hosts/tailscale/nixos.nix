@@ -10,7 +10,6 @@
 with lib;
 let
   cfg = config.nebulis.tailscale;
-
   inherit (config.networking) hostName;
 in
 {
@@ -18,6 +17,7 @@ in
     (lib.mkIf cfg.enable {
       services.tailscale = {
         enable = true;
+        package = pkgs.unstable.tailscale;
         authKeyFile = cfg.authKeyFile;
         extraUpFlags = cfg.extraUpFlags;
         useRoutingFeatures = cfg.useRoutingFeatures;

@@ -18,6 +18,7 @@ in
     nixpkgs = {
       common = with pkgs; [
         vim
+        starship
       ];
       nixos = with pkgs; [
       ];

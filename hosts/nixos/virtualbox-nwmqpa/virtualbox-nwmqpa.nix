@@ -14,6 +14,8 @@
 
     nebulis = {
       shared.base.enable = true;
+      
+      tailscale.enable = true;
 
       network = {
         useBr0 = true;

@@ -16,12 +16,13 @@ let
 
   virtualbox-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHMUPPWoKGmRxJmQq7sz8li1ffBrqMLB633yJa2LaLwh";
 
-  all = [
-    nwmqpaMain
-    nwmqpaDerived
-    mzlapqMain
+  machines = [
     virtualbox-nwmqpa
   ];
+
+  users = nwmqpa ++ mzlapq;
+
+  all = machines ++ users;
 in
 {
   # Secrets
@@ -30,6 +31,7 @@ in
   "nwmqpaDerivedSshKey.age".publicKeys = [ nwmqpaMain ];
   "nwmqpaPassword.age".publicKeys = [ virtualbox-nwmqpa ] ++ nwmqpa;
 
+  # Only this key need only the main key to be deciphered
   "mzlapqDerivedSshKey.age".publicKeys = [ mzlapqMain ];
 
   "virtualbox-nwmqpa.age".publicKeys = [
@@ -37,4 +39,6 @@ in
   ]
   ++ nwmqpa
   ++ mzlapq;
+
+  "tailscaleKey.age".publicKeys = all;
 }

@@ -38,7 +38,7 @@ in
         map (username: {
           name = username;
           value = {
-            shell = pkgs.fish;
+            shell = pkgs.fish; # TODO: Option for different users
             isNormalUser = true;
             description = username;
             hashedPassword = lib.mkIf config.nebulis.users.users.${username}.hasNixosPassword null;

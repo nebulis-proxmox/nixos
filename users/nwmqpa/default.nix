@@ -18,7 +18,6 @@ in
     nixpkgs = {
       common = with pkgs; [
         vim
-        starship
       ];
       nixos = with pkgs; [
       ];
@@ -30,6 +29,7 @@ in
       shared.basic.enable = true;
     };
     programs = {
+      starship.enable = true;
     };
   };
 }

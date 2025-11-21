@@ -14,8 +14,11 @@
 
     nebulis = {
       shared.base.enable = true;
-      
-      tailscale.enable = true;
+
+      tailscale = {
+        enable = true;
+        useRoutingFeatures = "server";
+      };
 
       network = {
         useBr0 = true;

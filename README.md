@@ -31,3 +31,10 @@ curl -fsSL https://install.determinate.systems/nix | sh -s -- install --determin
 # Add or remove hosts
 # ./scripts/edit_hosts.sh
 ```
+
+## Manipulating users
+
+```bash
+# Add a new user
+./scripts/add_user.sh
+```

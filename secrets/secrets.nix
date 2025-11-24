@@ -31,11 +31,13 @@ in
 
   # Only this key need only the main key to be deciphered
   "nwmqpaDerivedSshKey.age".publicKeys = [ nwmqpaMain ];
+
   "nwmqpaPassword.age".publicKeys = [ virtualbox-nwmqpa ] ++ nwmqpa;
 
   # Only this key need only the main key to be deciphered
   "mzlapqDerivedSshKey.age".publicKeys = [ mzlapqMain ];
 
+  # Machine keys
   "virtualbox-nwmqpa.age".publicKeys = [
     virtualbox-nwmqpa
   ]

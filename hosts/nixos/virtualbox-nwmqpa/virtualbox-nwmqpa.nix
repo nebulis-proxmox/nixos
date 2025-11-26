@@ -18,6 +18,10 @@
       tailscale = {
         enable = true;
         useRoutingFeatures = "server";
+        extraUpFlags = [
+          "--advertise-tags=tag:nixos-managed"
+          "--advertise-connector"
+        ]
       };
 
       network = {

@@ -19,6 +19,9 @@
         enable = true;
         useRoutingFeatures = "server";
         extraUpFlags = [
+          "--ssh=true"
+          "--reset=true"
+          "--accept-dns=true"
           "--advertise-tags=tag:nixos-managed"
           "--advertise-connector"
         ];

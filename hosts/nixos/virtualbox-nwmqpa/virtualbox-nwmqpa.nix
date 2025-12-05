@@ -15,6 +15,10 @@
     nebulis = {
       shared.base.enable = true;
 
+      kubernetes = {
+        enable = true;
+      };
+
       tailscale = {
         enable = true;
         useRoutingFeatures = "server";

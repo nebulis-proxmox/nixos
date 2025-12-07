@@ -49,6 +49,13 @@ in
         Extra flags to pass to tailscale up.
       '';
     };
+    tags = mkOption {
+      type = types.listOf types.str;
+      default = [ ];
+      description = ''
+        Tags to advertise to the tailnet.
+      '';
+    };
     useRoutingFeatures = mkOption {
       type = types.enum [
         "none"

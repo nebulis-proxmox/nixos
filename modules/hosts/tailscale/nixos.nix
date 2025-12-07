@@ -23,6 +23,7 @@ in
           (lib.mkIf cfg.enableSsh "--ssh=true")
           (lib.mkIf cfg.acceptDns "--accept-dns=true")
           (lib.mkIf cfg.resetCredentials "--reset=true")
+          ("--advertise-tags=" + (concatStringsSep "," (map (tag: "tag:" + tag) cfg.tags)))
         ]
         ++ cfg.extraUpFlags;
         useRoutingFeatures = cfg.useRoutingFeatures;

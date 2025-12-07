@@ -14,8 +14,8 @@ in
         kubernetes
       ];
 
-      nebulis.tailscale.extraUpFlags = [
-        "--advertise-tags=tag:kubernetes-control-plane"
+      nebulis.tailscale.tags = [
+        "kubernetes-control-plane"
       ];
     })
   ];

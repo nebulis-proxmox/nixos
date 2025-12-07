@@ -19,7 +19,12 @@ in
         enable = true;
         package = pkgs.unstable.tailscale;
         authKeyFile = cfg.authKeyFile;
-        extraUpFlags = cfg.extraUpFlags;
+        extraUpFlags = [
+          (lib.mkIf cfg.enableSsh "--ssh=true")
+          (lib.mkIf cfg.acceptDns "--accept-dns=true")
+          (lib.mkIf cfg.resetCredentials "--reset=true")
+        ]
+        ++ cfg.extraUpFlags;
         useRoutingFeatures = cfg.useRoutingFeatures;
         permitCertUid = "caddy";
       };

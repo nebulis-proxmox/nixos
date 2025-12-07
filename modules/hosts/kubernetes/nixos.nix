@@ -13,6 +13,10 @@ in
       environment.systemPackages = with pkgs; [
         kubernetes
       ];
+
+      nebulis.tailscale.extraUpFlags = [
+        "--advertise-tags=tag:kubernetes-control-plane"
+      ];
     })
   ];
 }

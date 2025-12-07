@@ -1,4 +1,11 @@
-{ options, config, lib, pkgs, inputs, ... }:
+{
+  options,
+  config,
+  lib,
+  pkgs,
+  inputs,
+  ...
+}:
 
 with lib;
 let
@@ -13,15 +20,42 @@ in
         enable custom tailscale module
       '';
     };
+    enableSsh = mkOption {
+      type = types.bool;
+      default = true;
+      description = ''
+        enable tailscale ssh
+      '';
+    };
+    acceptDns = mkOption {
+      type = types.bool;
+      default = true;
+      description = ''
+        enable tailscale dns acceptance
+      '';
+    };
+    resetCredentials = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        reset tailscale credentials on start
+      '';
+    };
     extraUpFlags = mkOption {
       type = types.listOf types.str;
-      default = ["--ssh=true" "--reset=true" "--accept-dns=true"];
+      default = [
+      ];
       description = ''
         Extra flags to pass to tailscale up.
       '';
     };
     useRoutingFeatures = mkOption {
-      type = types.enum [ "none" "client" "server" "both" ];
+      type = types.enum [
+        "none"
+        "client"
+        "server"
+        "both"
+      ];
       default = "none";
       example = "server";
       description = lib.mdDoc ''

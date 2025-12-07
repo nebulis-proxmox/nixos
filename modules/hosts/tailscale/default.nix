@@ -36,7 +36,7 @@ in
     };
     resetCredentials = mkOption {
       type = types.bool;
-      default = false;
+      default = true;
       description = ''
         reset tailscale credentials on start
       '';

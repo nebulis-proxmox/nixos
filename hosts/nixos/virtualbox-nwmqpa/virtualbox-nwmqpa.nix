@@ -25,7 +25,6 @@
         extraUpFlags = [
           "--advertise-connector"
         ];
-        tags = [ "nixos-managed" ];
       };
 
       network = {

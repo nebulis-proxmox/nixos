@@ -25,7 +25,7 @@ in
           (lib.mkIf cfg.resetCredentials "--reset=true")
           (
             "--advertise-tags="
-            + (concatStringsSep "," (map (tag: "tag:" + tag) (cfg.tags ++ [ "nixos-managed" ])))
+            + (concatStringsSep "," (map (tag: "tag:" + tag) cfg.tags))
           )
         ]
         ++ cfg.extraUpFlags;

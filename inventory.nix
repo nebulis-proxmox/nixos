@@ -11,6 +11,11 @@
           "nwmqpa"
         ];
       };
+      utm-nwmqpa = {
+        users.enableUsers = [
+          "nwmqpa"
+        ];
+      };
     };
   };
 }

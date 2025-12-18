@@ -9,13 +9,13 @@
     inputs.self.nixosModules.nebulis
   ];
   config = {
-    networking.hostName = "virtualbox-nwmqpa";
+    networking.hostName = "utm-nwmqpa";
     system.stateVersion = "25.05";
 
     nebulis = {
       shared.base = {
         enable = true;
-        consoleKeyMap = "fr-latin9";        
+        consoleKeyMap = "mac-fr";        
       };
 
       kubernetes = {
@@ -32,7 +32,7 @@
 
       network = {
         useBr0 = true;
-        physicalInterfaceName = "enp0s3";
+        physicalInterfaceName = "enp0s1";
       };
 
       timezone.paris = true;

@@ -15,6 +15,12 @@ in
       default = false;
       description = ''basic configuration that should be set for all host systems by default'';
     };
+
+    consoleKeyMap = lib.mkOption {
+      type = lib.types.str;
+      default = "fr-latin9";
+      description = ''console keymap'';
+    };
   };
 
   config = lib.mkIf cfg.enable {

@@ -10,7 +10,7 @@ in
 {
   config = lib.mkMerge [
     (lib.mkIf cfg.enable {
-      console.keyMap = "fr-latin9";
+      console.keyMap = cfg.consoleKeyMap;
 
       nebulis = {
         autoUpgrade.enable = true;

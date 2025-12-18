@@ -7,6 +7,7 @@ let
   mzlapqMain = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB9XyQ53ztHRg2u8gMTd1JN+WOeJ2WPe91rcc7gbzJNN";
 
   virtualbox-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHMUPPWoKGmRxJmQq7sz8li1ffBrqMLB633yJa2LaLwh";
+  utm-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHMUPPWoKGmRxJmQq7sz8li1ffBrqMLB633yJa2LaLwh";
 
   # Groups
   nwmqpa = [
@@ -32,7 +33,7 @@ in
   # Only this key need only the main key to be deciphered
   "nwmqpaDerivedSshKey.age".publicKeys = [ nwmqpaMain ];
 
-  "nwmqpaPassword.age".publicKeys = [ virtualbox-nwmqpa ] ++ nwmqpa;
+  "nwmqpaPassword.age".publicKeys = [ virtualbox-nwmqpa utm-nwmqpa ] ++ nwmqpa;
 
   # Only this key need only the main key to be deciphered
   "mzlapqDerivedSshKey.age".publicKeys = [ mzlapqMain ];
@@ -40,6 +41,11 @@ in
   # Machine keys
   "virtualbox-nwmqpa.age".publicKeys = [
     virtualbox-nwmqpa
+  ]
+  ++ users;
+
+  "utm-nwmqpa.age".publicKeys = [
+    utm-nwmqpa
   ]
   ++ users;
 

@@ -13,6 +13,8 @@
     system.stateVersion = "25.05";
 
     nebulis = {
+      autoUpgrade.enable = true;
+
       shared.base = {
         enable = true;
         consoleKeyMap = "mac-fr";        

@@ -10,7 +10,7 @@
   ];
   config = {
     networking.hostName = "virtualbox-nwmqpa";
-    system.stateVersion = "25.05";
+    system.stateVersion = "25.11";
 
     nebulis = {
       shared.base = {

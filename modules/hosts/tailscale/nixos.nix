@@ -17,7 +17,7 @@ in
     (lib.mkIf cfg.enable {
       services.tailscale = {
         enable = true;
-        package = pkgs.unstable.tailscale;
+        package = cfg.package;
         authKeyFile = cfg.authKeyFile;
         extraUpFlags = [
           (lib.mkIf cfg.enableSsh "--ssh=true")

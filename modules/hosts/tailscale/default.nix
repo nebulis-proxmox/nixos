@@ -20,6 +20,13 @@ in
         enable custom tailscale module
       '';
     };
+    package = mkOption {
+      type = types.package;
+      default = pkgs.unstable.tailscale;
+      description = ''
+        Tailscale package to use
+      '';
+    };
     enableSsh = mkOption {
       type = types.bool;
       default = true;

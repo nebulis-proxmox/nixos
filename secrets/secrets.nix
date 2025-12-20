@@ -20,20 +20,29 @@ let
   ];
 
   machines = [
+    utm-nwmqpa
     virtualbox-nwmqpa
   ];
 
   users = nwmqpa ++ mzlapq;
 
   all = machines ++ users;
+
+  k8s-control-plane = [
+    utm-nwmqpa
+  ];
 in
 {
-  # Secrets
+  # User keys
 
   # Only this key need only the main key to be deciphered
   "nwmqpaDerivedSshKey.age".publicKeys = [ nwmqpaMain ];
 
-  "nwmqpaPassword.age".publicKeys = [ virtualbox-nwmqpa utm-nwmqpa ] ++ nwmqpa;
+  "nwmqpaPassword.age".publicKeys = [
+    virtualbox-nwmqpa
+    utm-nwmqpa
+  ]
+  ++ nwmqpa;
 
   # Only this key need only the main key to be deciphered
   "mzlapqDerivedSshKey.age".publicKeys = [ mzlapqMain ];
@@ -50,4 +59,17 @@ in
   ++ users;
 
   "tailscaleKey.age".publicKeys = all;
+
+  # CA keys
+  "ca-root.key.age".publicKeys = [
+    nwmqpaMain
+    mzlapqMain
+  ];
+  "ca-intermediate.key.age".publicKeys = [
+    nwmqpaMain
+    mzlapqMain
+    virtualbox-nwmqpa
+    utm-nwmqpa
+  ];
+  # END_SECRETS
 }

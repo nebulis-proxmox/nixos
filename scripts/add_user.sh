@@ -1,5 +1,11 @@
 #!/bin/bash
 
+set -e
+
+tempdir=$(mktemp -d)
+
+trap 'rm -rf "$tempdir"' EXIT
+
 rootdir=$(git rev-parse --show-toplevel)
 
 username=$(nix run $rootdir/utils/gum -- input --placeholder "new_user" --header "New user name:" --header.foreground="99" --prompt.foreground="212")
@@ -29,7 +35,13 @@ fi
 
 public_keys=$(echo "$chosen_identities" | xargs -I {} bash -c "cat $rootdir/secrets/secrets.nix | grep {} | sed -nr 's/[[:space:]]+.*[[:space:]]+=[[:space:]](\".*\");/\\1/p'")
 
-awk -v username=$username -v identities=$chosen_identities '!found && /# Machine keys/ { print "  \042" username "Password.age\042.publicKeys = [ " identities " ];"; found=1 } 1' $rootdir/secrets/secrets.nix | nixfmt > $rootdir/secrets/secrets_formatted.nix
+awk \
+  -v username="${username}" \
+  -v identities="${chosen_identities//$'\n'/ }" \
+  '!found && /# Machine keys/ { print "  \042" username "Password.age\042.publicKeys = [ " identities " ];"; found=1 } 1' \
+  $rootdir/secrets/secrets.nix \
+  | nixfmt > $rootdir/secrets/secrets_formatted.nix
+
 mv $rootdir/secrets/secrets_formatted.nix $rootdir/secrets/secrets.nix
 
 cd $rootdir/secrets

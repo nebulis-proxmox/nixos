@@ -12,6 +12,7 @@ in
     (lib.mkIf cfg.enable {
       environment.systemPackages = with pkgs; [
         cri-o
+        cri-tools
       ];
 
       environment.etc = {

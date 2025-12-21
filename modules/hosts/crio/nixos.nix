@@ -35,7 +35,7 @@ in
             }
           '';
           mode = "0644";
-       }
+       };
       };
 
       systemd.services.crio = {

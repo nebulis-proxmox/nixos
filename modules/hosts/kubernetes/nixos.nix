@@ -42,7 +42,7 @@ in
           RestartSec = 10;
           WatchdogSec = "60s";
           ExecStart = ''
-            ${lib.getExe pkgs.cri-o} \
+            ${pkgs.cri-o}/bin/crio \
               $CRIO_CONFIG_OPTIONS \
               $CRIO_RUNTIME_OPTIONS \
               $CRIO_STORAGE_OPTIONS \

@@ -25,7 +25,7 @@ in
         aliases = [ "cri-o.service" ];
 
         description = "Container Runtime Interface for OCI (CRI-O)";
-        documentation = "https://github.com/cri-o/cri-o";
+        documentation = [ "https://github.com/cri-o/cri-o" ];
         wants = [ "network-online.target" ];
         before = [ "kubelet.service" ];
         after = [ "network-online.target" ];
@@ -42,12 +42,12 @@ in
           RestartSec = 10;
           WatchdogSec = "60s";
           ExecStart = ''
-          ${lib.getExe pkgs.cri-o} \
-            $CRIO_CONFIG_OPTIONS \
-            $CRIO_RUNTIME_OPTIONS \
-            $CRIO_STORAGE_OPTIONS \
-            $CRIO_NETWORK_OPTIONS \
-            $CRIO_METRICS_OPTIONS
+            ${lib.getExe pkgs.cri-o} \
+              $CRIO_CONFIG_OPTIONS \
+              $CRIO_RUNTIME_OPTIONS \
+              $CRIO_STORAGE_OPTIONS \
+              $CRIO_NETWORK_OPTIONS \
+              $CRIO_METRICS_OPTIONS
           '';
           ExecReload = ''
             kill -HUP $MAINPID

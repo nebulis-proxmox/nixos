@@ -6,7 +6,7 @@
   options.nebulis.crio = {
     enable = lib.mkOption {
       type = lib.types.bool;
-      default = false;
+      default = true;
       description = ''
         enable cri-o host module
       '';

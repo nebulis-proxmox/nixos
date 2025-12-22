@@ -14,6 +14,7 @@ in
     (lib.mkIf cfg.enable {
       environment.systemPackages = with pkgs; [
         kubernetes
+        openssl
       ];
 
       age.secrets = {
@@ -99,21 +100,47 @@ in
         };
       };
 
-      systemd.services.kubelet = {
-        description = "Kubernetes Kubelet";
-        documentation = [ "https://github.com/kubernetes/kubernetes" ];
-        after = [ "crio.service" ];
-        requires = [ "crio.service" ];
-        wantedBy = [ "multi-user.target" ];
+      systemd.services = {
+        create-apiserver-kubelet-config = {
+          path = [
+            pkgs.openssl
+          ];
 
-        serviceConfig = {
-          ExecStart = ''
-            ${pkgs.kubernetes}/bin/kubelet \
-              --config=/etc/kubernetes/kubelet-config.yaml \
-              --v=2
+          enableStrictShellChecks = true;
+          description = "Create Kubelet Configuration for API Server";
+          documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+          before = [ "kubelet.service" ];
+          wantedBy = [ "multi-user.target" ];
+
+          script = ''
+            if [ ! -f /etc/kubernetes/pki/ca.crt ] || [ ! -f /etc/kubernetes/pki/ca.key ]; then
+              echo "Required certs are missing, cannot create kubelet client certificates."
+              exit 1
+            fi
+
+            if [ ! -f /etc/kubernetes/pki/apiserver-kubelet-client.key ]; then
+              openssl genpkey -algorithm ED25519 -out "/etc/kubernetes/pki/apiserver-kubelet-client.key"
+              chmod 600 "/etc/kubernetes/pki/apiserver-kubelet-client.key"
+            fi
           '';
-          Restart = "on-failure";
-          RestartSec = "5";
+        };
+
+        kubelet = {
+          description = "Kubernetes Kubelet";
+          documentation = [ "https://github.com/kubernetes/kubernetes" ];
+          after = [ "crio.service" ];
+          requires = [ "crio.service" ];
+          wantedBy = [ "multi-user.target" ];
+
+          serviceConfig = {
+            ExecStart = ''
+              ${pkgs.kubernetes}/bin/kubelet \
+                --config=/etc/kubernetes/kubelet-config.yaml \
+                --v=2
+            '';
+            Restart = "on-failure";
+            RestartSec = "5";
+          };
         };
       };
 

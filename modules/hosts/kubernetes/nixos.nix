@@ -2,6 +2,7 @@
   config,
   pkgs,
   lib,
+  inputs,
   ...
 }:
 let
@@ -16,12 +17,8 @@ in
       ];
 
       age.secrets = {
-        ca-kubernetes.key = {
-          file = inputs.self + "/secrets/ca-kubernetes.key.age";
-        };
-        ca-etcd.key = {
-          file = inputs.self + "/secrets/ca-etcd.key.age";
-        };
+        "ca-kubernetes.key".file = inputs.self + "/secrets/ca-kubernetes.key.age";
+        "ca-etcd.key".file = inputs.self + "/secrets/ca-etcd.key.age";
       };
 
       environment.etc = {
@@ -29,14 +26,14 @@ in
           source = config.age.secrets."ca-kubernetes.key".file;
         };
         "kubernetes/ca.crt" = {
-          text = readFile "${inputs.self}/certs/ca-kubernetes.crt";
+          text = builtins.readFile "${inputs.self}/certs/ca-kubernetes.crt";
           mode = "0644";
         };
         "kubernetes/etcd/ca.key" = {
           source = config.age.secrets."ca-etcd.key".file;
         };
         "kubernetes/etcd/ca.crt" = {
-          text = readFile "${inputs.self}/certs/ca-etcd.crt";
+          text = builtins.readFile "${inputs.self}/certs/ca-etcd.crt";
           mode = "0644";
         };
       };

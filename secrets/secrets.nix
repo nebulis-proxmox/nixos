@@ -68,6 +68,16 @@ in
   "ca-intermediate.key.age".publicKeys = [
     nwmqpaMain
     mzlapqMain
+  ];
+  "ca-kubernetes.key.age".publicKeys = [
+    nwmqpaMain
+    mzlapqMain
+    virtualbox-nwmqpa
+    utm-nwmqpa
+  ];
+  "ca-etcd.key.age".publicKeys = [
+    nwmqpaMain
+    mzlapqMain
     virtualbox-nwmqpa
     utm-nwmqpa
   ];

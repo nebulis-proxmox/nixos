@@ -26,14 +26,14 @@ in
 
       environment.etc = {
         "kubernetes/ca.key" = {
-          source = age.secrets."ca-kubernetes.key".file;
+          source = config.age.secrets."ca-kubernetes.key".file;
         };
         "kubernetes/ca.crt" = {
           text = readFile "${inputs.self}/certs/ca-kubernetes.crt";
           mode = "0644";
         };
         "kubernetes/etcd/ca.key" = {
-          source = age.secrets."ca-etcd.key".file;
+          source = config.age.secrets."ca-etcd.key".file;
         };
         "kubernetes/etcd/ca.crt" = {
           text = readFile "${inputs.self}/certs/ca-etcd.crt";

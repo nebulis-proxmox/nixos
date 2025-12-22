@@ -102,5 +102,45 @@ in
         decrypt pre-approved ssh authkey
       '';
     };
+
+    services = mkOption {
+      description = ''
+        Submodule for configuring tailscale services
+      '';
+      type = types.attrsOf (
+        types.submodule (
+          { config, ... }:
+          {
+            options = {
+              mode = mkOption {
+                type = types.enum [
+                  "http"
+                  "https"
+                  "tcp"
+                  "tls-terminated-tcp"
+                ];
+                default = "https";
+                description = ''
+                  Mode of the tailscale service
+                '';
+              };
+              port = mkOption {
+                type = types.int;
+                default = 443;
+                description = ''
+                  External port of the tailscale service
+                '';
+              };
+              target = mkOption {
+                type = types.str;
+                description = ''
+                  Target of the tailscale service
+                '';
+              };
+            };
+          }
+        )
+      );
+    };
   };
 }

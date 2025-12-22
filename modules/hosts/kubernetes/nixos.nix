@@ -15,31 +15,16 @@ in
         kubernetes
       ];
 
-      nebulis.tailscale.tags = [
-        "kubernetes-control-plane"
-      ];
-
-      systemd.services.tailscale-k8s-svc = {
-        enableStrictShellChecks = true;
-        path = [
-          tailscaleCfg.package
+      nebulis.tailscale = {
+        tags = [
+          "kubernetes-control-plane"
         ];
-        after = [
-          "tailscaled.service"
-          "tailscaled-autoconnect.service"
-        ];
-        requires = [ "tailscaled.service" ];
 
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
+        services.k8s = {
+          mode = "tcp";
+          port = 443;
+          target = "127.0.0.1:8080";
         };
-
-        script = "tailscale serve --service=svc:k8s --tcp=443 127.0.0.1:8080";
-        preStop = "tailscale serve drain svc:k8s && sleep 10";
-        postStop = "tailscale serve clear svc:k8s";
-
-        wantedBy = [ "multi-user.target" ];
       };
     })
   ];

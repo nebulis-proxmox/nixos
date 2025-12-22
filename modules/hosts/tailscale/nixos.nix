@@ -33,6 +33,32 @@ in
         permitCertUid = "caddy";
       };
 
+      systemd.services = lib.mapAttrs' (
+        name: value:
+        nameValuePair ("tailscale-${name}-svc") ({
+          enableStrictShellChecks = true;
+          path = [
+            cfg.package
+          ];
+          after = [
+            "tailscaled.service"
+            "tailscaled-autoconnect.service"
+          ];
+          requires = [ "tailscaled.service" ];
+
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+          };
+
+          script = "tailscale serve --service=svc:${name} --${value.mode}=${toString value.port} ${value.target}";
+          preStop = "tailscale serve drain svc:k8s && sleep 10";
+          postStop = "tailscale serve clear svc:${name}";
+
+          wantedBy = [ "multi-user.target" ];
+        })
+      ) cfg.services;
+
       environment.persistence."${config.nebulis.impermanence.dontBackup}" = {
         hideMounts = true;
         directories = [

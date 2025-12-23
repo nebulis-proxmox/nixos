@@ -553,8 +553,8 @@ in
             fi
 
             if [ ! -f /etc/kubernetes/pki/sa.key ]; then
-              openssl genpkey -algorithm ED25519 -out "/etc/kubernetes/pki/sa.key"
-              openssl pkey -in "/etc/kubernetes/pki/sa.key" -pubout -out "/etc/kubernetes/pki/sa.pub"
+              openssl genrsa -out "/etc/kubernetes/pki/sa.key" 4096
+              openssl rsa -in "/etc/kubernetes/pki/sa.key" -pubout -out "/etc/kubernetes/pki/sa.pub"
               chmod 600 "/etc/kubernetes/pki/sa.key"
               chmod 644 "/etc/kubernetes/pki/sa.pub"
             fi

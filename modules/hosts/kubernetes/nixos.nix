@@ -103,48 +103,6 @@ in
       # ip addr show tailscale0
 
       systemd.services = {
-        create-apiserver-kubelet-config = {
-          path = [
-            pkgs.openssl
-          ];
-
-          enableStrictShellChecks = true;
-          description = "Create Kubelet Configuration for API Server";
-          documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
-          before = [ "kubelet.service" ];
-          wantedBy = [ "multi-user.target" ];
-
-          script = ''
-            if [ ! -f /etc/kubernetes/pki/ca.crt ] || [ ! -f /etc/kubernetes/pki/ca.key ]; then
-              echo "Required certs are missing, cannot create kubelet client certificates."
-              exit 1
-            fi
-
-            if [ ! -f /etc/kubernetes/pki/apiserver-kubelet-client.key ]; then
-              openssl genpkey -algorithm ED25519 -out "/etc/kubernetes/pki/apiserver-kubelet-client.key"
-              chmod 600 "/etc/kubernetes/pki/apiserver-kubelet-client.key"
-            fi
-
-            if [ ! -f /etc/kubernetes/pki/apiserver-kubelet-client.crt ] || ! openssl x509 -checkend 86400 -noout -in /etc/kubernetes/pki/apiserver-kubelet-client.crt; then
-              openssl req -new \
-                -key "/etc/kubernetes/pki/apiserver-kubelet-client.key" \
-                -subj "/CN=kube-apiserver-kubelet-client/O=kubeadm:cluster-admins" \
-                -out "/tmp/apiserver-kubelet-client.csr"
-
-              openssl x509 -req \
-                -in "/tmp/apiserver-kubelet-client.csr" \
-                -CA "/etc/kubernetes/pki/ca.crt" \
-                -CAkey "/etc/kubernetes/pki/ca.key" \
-                -out "/etc/kubernetes/pki/apiserver-kubelet-client.crt" \
-                -days 365 \
-                -sha512
-
-              chmod 644 "/etc/kubernetes/pki/apiserver-kubelet-client.crt"
-              rm -f "/tmp/apiserver-kubelet-client.csr"
-            fi
-          '';
-        };
-
         create-etcd-manifest = {
           path = [
             tailscaleCfg.package
@@ -334,6 +292,266 @@ in
                 -extfile <(printf "subjectAltName=DNS:${config.networking.hostName}, IP:%s, DNS:localhost, IP:127.0.0.1" "$(tailscale ip -4)")
               chmod 644 "/etc/kubernetes/pki/etcd/peer.crt"
               rm -f "/tmp/etcd-peer.csr"
+            fi
+
+            if [ ! -f /etc/kubernetes/pki/apiserver-etcd-client.key ]; then
+              openssl genpkey -algorithm ED25519 -out "/etc/kubernetes/pki/apiserver-etcd-client.key"
+              chmod 600 "/etc/kubernetes/pki/apiserver-etcd-client.key"
+            fi
+
+            if [ ! -f /etc/kubernetes/pki/apiserver-etcd-client.crt ] || ! openssl x509 -checkend 86400 -noout -in /etc/kubernetes/pki/apiserver-etcd-client.crt; then
+              openssl req -new \
+                -key "/etc/kubernetes/pki/apiserver-etcd-client.key" \
+                -subj "/CN=kube-apiserver-etcd-client" \
+                -out "/tmp/apiserver-etcd-client.csr"
+
+              openssl x509 -req \
+                -in "/tmp/apiserver-etcd-client.csr" \
+                -CA "/etc/kubernetes/pki/etcd/ca.crt" \
+                -CAkey "/etc/kubernetes/pki/etcd/ca.key" \
+                -out /etc/kubernetes/pki/apiserver-etcd-client.crt \
+                -days 365 \
+                -sha512
+              chmod 644 /etc/kubernetes/pki/apiserver-etcd-client.crt
+              rm -f "/tmp/apiserver-etcd-client.csr"
+            fi
+          '';
+        };
+
+        create-apiserver-manifest = {
+          path = [
+            tailscaleCfg.package
+          ];
+
+          enableStrictShellChecks = true;
+          description = "Create Kube API Server Manifest";
+          documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+          before = [ "kubelet.service" ];
+          wantedBy = [ "multi-user.target" ];
+
+          serviceConfig = {
+            Type = "oneshot";
+          };
+
+          script = ''
+            if [ ! -f /etc/kubernetes/manifest/kube-apiserver.yaml ]; then
+              mkdir -p /etc/kubernetes/manifests
+
+            cat > /etc/kubernetes/manifests/kube-apiserver.yaml <<-EOF
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              annotations:
+                kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: $(tailscale ip -4):6443
+              labels:
+                component: kube-apiserver
+                tier: control-plane
+              name: kube-apiserver
+              namespace: kube-system
+            spec:
+              containers:
+              - command:
+                - kube-apiserver
+                - --advertise-address=$(tailscale ip -4)
+                - --allow-privileged=true
+                - --authorization-mode=Node,RBAC
+                - --client-ca-file=/etc/kubernetes/pki/ca.crt
+                - --enable-admission-plugins=NodeRestriction
+                - --enable-bootstrap-token-auth=true
+                - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+                - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+                - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+                - --etcd-servers=https://$(tailscale ip -4):2379
+                - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+                - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
+                - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+                - --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+                - --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key
+                - --requestheader-allowed-names=front-proxy-client
+                - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+                - --requestheader-extra-headers-prefix=X-Remote-Extra-
+                - --requestheader-group-headers=X-Remote-Group
+                - --requestheader-username-headers=X-Remote-User
+                - --secure-port=6443
+                - --service-account-issuer=https://kubernetes.default.svc.cluster.local
+                - --service-account-key-file=/etc/kubernetes/pki/sa.pub
+                - --service-account-signing-key-file=/etc/kubernetes/pki/sa.key
+                - --service-cluster-ip-range=10.96.0.0/12
+                - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+                - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+                image: registry.k8s.io/kube-apiserver:v1.34.3
+                imagePullPolicy: IfNotPresent
+                livenessProbe:
+                  failureThreshold: 8
+                  httpGet:
+                    host: $(tailscale ip -4)
+                    path: /livez
+                    port: probe-port
+                    scheme: HTTPS
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 15
+                name: kube-apiserver
+                ports:
+                - containerPort: 6443
+                  name: probe-port
+                  protocol: TCP
+                readinessProbe:
+                  failureThreshold: 3
+                  httpGet:
+                    host: $(tailscale ip -4)
+                    path: /readyz
+                    port: probe-port
+                    scheme: HTTPS
+                  periodSeconds: 1
+                  timeoutSeconds: 15
+                resources:
+                  requests:
+                    cpu: 250m
+                startupProbe:
+                  failureThreshold: 24
+                  httpGet:
+                    host: $(tailscale ip -4)
+                    path: /livez
+                    port: probe-port
+                    scheme: HTTPS
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 15
+                volumeMounts:
+                - mountPath: /etc/ssl/certs
+                  name: ca-certs
+                  readOnly: true
+                - mountPath: /etc/pki/tls/certs
+                  name: etc-pki-tls-certs
+                  readOnly: true
+                - mountPath: /etc/kubernetes/pki
+                  name: k8s-certs
+                  readOnly: true
+              hostNetwork: true
+              priority: 2000001000
+              priorityClassName: system-node-critical
+              securityContext:
+                seccompProfile:
+                  type: RuntimeDefault
+              volumes:
+              - hostPath:
+                  path: /etc/ssl/certs
+                  type: DirectoryOrCreate
+                name: ca-certs
+              - hostPath:
+                  path: /etc/pki/tls/certs
+                  type: DirectoryOrCreate
+                name: etc-pki-tls-certs
+              - hostPath:
+                  path: /etc/kubernetes/pki
+                  type: DirectoryOrCreate
+                name: k8s-certs
+            status: {}
+            EOF
+
+              chmod 644 /etc/kubernetes/manifests/etcd.yaml
+            fi
+          '';
+        };
+
+        create-apiserver-certs = {
+          path = [
+            pkgs.openssl
+          ];
+
+          enableStrictShellChecks = true;
+          description = "Create API Server Certs";
+          documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+          before = [ "kubelet.service" ];
+          wantedBy = [ "multi-user.target" ];
+
+          script = ''
+            if [ ! -f /etc/kubernetes/pki/ca.crt ] || [ ! -f /etc/kubernetes/pki/ca.key ]; then
+              echo "Required certs are missing, cannot create kubelet client certificates."
+              exit 1
+            fi
+
+            if [ ! -f /etc/kubernetes/pki/apiserver.key ]; then
+              openssl genpkey -algorithm ED25519 -out "/etc/kubernetes/pki/apiserver.key"
+              chmod 600 "/etc/kubernetes/pki/apiserver.key"
+            fi
+
+            if [ ! -f /etc/kubernetes/pki/apiserver.crt ] || ! openssl x509 -checkend 86400 -noout -in /etc/kubernetes/pki/apiserver.crt; then
+              openssl req -new \
+                -key "/etc/kubernetes/pki/apiserver.key" \
+                -subj "/CN=kube-apiserver/O=kube-apiserver" \
+                -out "/tmp/apiserver.csr" \
+                -addext "subjectAltName = DNS:${config.networking.hostName},IP:$(tailscale ip -4)"
+
+              openssl x509 -req \
+                -in "/tmp/apiserver.csr" \
+                -CA "/etc/kubernetes/pki/ca.crt" \
+                -CAkey "/etc/kubernetes/pki/ca.key" \
+                -out "/etc/kubernetes/pki/apiserver.crt" \
+                -days 365 \
+                -sha512 \
+                -extfile <(printf "subjectAltName=DNS:%s,IP:%s" "${config.networking.hostName}" "$(tailscale ip -4)")
+              chmod 644 "/etc/kubernetes/pki/apiserver.crt"
+              rm -f "/tmp/apiserver.csr"
+            fi
+
+            if [ ! -f /etc/kubernetes/pki/apiserver-kubelet-client.key ]; then
+              openssl genpkey -algorithm ED25519 -out "/etc/kubernetes/pki/apiserver-kubelet-client.key"
+              chmod 600 "/etc/kubernetes/pki/apiserver-kubelet-client.key"
+            fi
+
+            if [ ! -f /etc/kubernetes/pki/apiserver-kubelet-client.crt ] || ! openssl x509 -checkend 86400 -noout -in /etc/kubernetes/pki/apiserver-kubelet-client.crt; then
+              openssl req -new \
+                -key "/etc/kubernetes/pki/apiserver-kubelet-client.key" \
+                -subj "/CN=kube-apiserver-kubelet-client/O=system:masters" \
+                -out "/tmp/apiserver-kubelet-client.csr"
+
+              openssl x509 -req \
+                -in "/tmp/apiserver-kubelet-client.csr" \
+                -CA "/etc/kubernetes/pki/ca.crt" \
+                -CAkey "/etc/kubernetes/pki/ca.key" \
+                -out "/etc/kubernetes/pki/apiserver-kubelet-client.crt" \
+                -days 365 \
+                -sha512
+
+              chmod 644 "/etc/kubernetes/pki/apiserver-kubelet-client.crt"
+              rm -f "/tmp/apiserver-kubelet-client.csr"
+            fi
+
+            if [ ! -f /etc/kubernetes/pki/front-proxy-ca.crt ] || [ ! -f /etc/kubernetes/pki/front-proxy-ca.key ]; then
+              echo "Required certs are missing, cannot create kubelet client certificates."
+              exit 1
+            fi
+
+            if [ ! -f /etc/kubernetes/pki/front-proxy-client.key ]; then
+              openssl genpkey -algorithm ED25519 -out "/etc/kubernetes/pki/front-proxy-client.key"
+              chmod 600 "/etc/kubernetes/pki/front-proxy-client.key"
+            fi
+
+            if [ ! -f /etc/kubernetes/pki/front-proxy-client.crt ] || ! openssl x509 -checkend 86400 -noout -in /etc/kubernetes/pki/front-proxy-client.crt; then
+              openssl req -new \
+                -key "/etc/kubernetes/pki/front-proxy-client.key" \
+                -subj "/CN=front-proxy-client/O=front-proxy" \
+                -out "/tmp/front-proxy-client.csr"
+
+              openssl x509 -req \
+                -in "/tmp/front-proxy-client.csr" \
+                -CA "/etc/kubernetes/pki/front-proxy-ca.crt" \
+                -CAkey "/etc/kubernetes/pki/front-proxy-ca.key" \
+                -out "/etc/kubernetes/pki/front-proxy-client.crt" \
+                -days 365 \
+                -sha512
+
+              chmod 644 "/etc/kubernetes/pki/front-proxy-client.crt"
+              rm -f "/tmp/front-proxy-client.csr"
+            fi
+
+            if [ ! -f /etc/kubernetes/pki/sa.key ]; then
+              openssl genpkey -algorithm ED25519 -out "/etc/kubernetes/pki/sa.key"
+              openssl pkey -in "/etc/kubernetes/pki/sa.key" -pubout -out "/etc/kubernetes/pki/sa.pub"
+              chmod 600 "/etc/kubernetes/pki/sa.key"
+              chmod 644 "/etc/kubernetes/pki/sa.pub"
             fi
           '';
         };

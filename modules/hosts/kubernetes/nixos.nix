@@ -162,7 +162,9 @@ in
 
           script = ''
             if [ ! -f /etc/kubernetes/manifest/etcd.yaml ]; then
-            cat > /etc/kubernetes/manifest/etcd.yaml <<-EOF
+              mkdir -p /etc/kubernetes/manifests
+
+            cat > /etc/kubernetes/manifests/etcd.yaml <<-EOF
             apiVersion: v1
             kind: Pod
             metadata:
@@ -259,7 +261,7 @@ in
             status: {}
             EOF
 
-              chmod 644 /etc/kubernetes/manifest/etcd.yaml
+              chmod 644 /etc/kubernetes/manifests/etcd.yaml
             fi
           '';
         };

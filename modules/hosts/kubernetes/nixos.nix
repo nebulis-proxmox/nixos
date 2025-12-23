@@ -176,26 +176,26 @@ in
                 -days 365 \
                 -sha512
 
-              cat > /etc/kubernetes/kubelet/kubeconfig <<-EOF
-                apiVersion: v1
-                kind: Config
-                clusters:
-                - name: kubernetes
-                  cluster:
-                    certificate-authority-data: $(base64 -w0 /etc/kubernetes/pki/ca.crt)
-                    server: https://127.0.0.1:6443
-                contexts:
-                - name: system:node:${config.networking.hostName}@kubernetes
-                  context:
-                    cluster: kubernetes
-                    user: system:node:${config.networking.hostName}
-                current-context: system:node:${config.networking.hostName}@kubernetes
-                users:
-                - name: system:node:${config.networking.hostName}
-                  user:
-                    client-certificate-data: $(base64 -w0 /tmp/kubelet.crt)
-                    client-key-data: $(base64 -w0 /tmp/kubelet.key)
-              EOF
+            cat > /etc/kubernetes/kubelet/kubeconfig <<-EOF
+            apiVersion: v1
+            kind: Config
+            clusters:
+            - name: kubernetes
+              cluster:
+                certificate-authority-data: $(base64 -w0 /etc/kubernetes/pki/ca.crt)
+                server: https://127.0.0.1:6443
+            contexts:
+            - name: system:node:${config.networking.hostName}@kubernetes
+              context:
+                cluster: kubernetes
+                user: system:node:${config.networking.hostName}
+            current-context: system:node:${config.networking.hostName}@kubernetes
+            users:
+            - name: system:node:${config.networking.hostName}
+              user:
+                client-certificate-data: $(base64 -w0 /tmp/kubelet.crt)
+                client-key-data: $(base64 -w0 /tmp/kubelet.key)
+            EOF
 
               rm -f "/tmp/kubelet.key" "/tmp/kubelet.csr" "/tmp/kubelet.crt"
               

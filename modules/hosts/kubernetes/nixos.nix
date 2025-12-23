@@ -111,6 +111,7 @@ in
           enableStrictShellChecks = true;
           description = "Create Etcd Manifest";
           documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+          after = [ "tailscaled.service" ];
           before = [ "kubelet.service" ];
           wantedBy = [ "multi-user.target" ];
 
@@ -233,6 +234,7 @@ in
           enableStrictShellChecks = true;
           description = "Create Etcd Certificates";
           documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+          after = [ "tailscaled.service" ];
           before = [ "kubelet.service" ];
           wantedBy = [ "multi-user.target" ];
 
@@ -326,6 +328,7 @@ in
           enableStrictShellChecks = true;
           description = "Create Kube API Server Manifest";
           documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+          after = [ "tailscaled.service" ];
           before = [ "kubelet.service" ];
           wantedBy = [ "multi-user.target" ];
 
@@ -458,11 +461,13 @@ in
         create-apiserver-certs = {
           path = [
             pkgs.openssl
+            tailscaleCfg.package
           ];
 
           enableStrictShellChecks = true;
           description = "Create API Server Certs";
           documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+          after = [ "tailscaled.service" ];
           before = [ "kubelet.service" ];
           wantedBy = [ "multi-user.target" ];
 
@@ -482,7 +487,7 @@ in
                 -key "/etc/kubernetes/pki/apiserver.key" \
                 -subj "/CN=kube-apiserver/O=kube-apiserver" \
                 -out "/tmp/apiserver.csr" \
-                -addext "subjectAltName = DNS:${config.networking.hostName},IP:$(tailscale ip -4)"
+                -addext "subjectAltName = DNS:${config.networking.hostName}, IP:$(tailscale ip -4)"
 
               openssl x509 -req \
                 -in "/tmp/apiserver.csr" \
@@ -559,11 +564,13 @@ in
         create-kubelet-kubeconfig = {
           path = [
             pkgs.openssl
+            tailscaleCfg.package
           ];
 
           enableStrictShellChecks = true;
           description = "Create Kubelet kubeconfig";
           documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+          after = [ "tailscaled.service" ];
           before = [ "kubelet.service" ];
           wantedBy = [ "multi-user.target" ];
 

@@ -37,6 +37,12 @@ in
           '';
           mode = "0644";
        };
+       "crictl.yaml" = {
+          text = ''
+            runtime-endpoint: unix:///var/run/crio/crio.sock
+          '';
+          mode = "0644";
+       };
       };
 
       systemd.services.crio = {

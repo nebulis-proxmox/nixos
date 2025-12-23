@@ -305,7 +305,7 @@ in
                 -out "/etc/kubernetes/pki/etcd/server.crt" \
                 -days 365 \
                 -sha512 \
-                -extfile <(printf "subjectAltName=DNS:${config.networking.hostName}, IP:$(tailscale ip -4), DNS:localhost, IP:127.0.0.1")
+                -extfile <(printf "subjectAltName=DNS:${config.networking.hostName}, IP:%s, DNS:localhost, IP:127.0.0.1" "$(tailscale ip -4)")
               chmod 644 "/etc/kubernetes/pki/etcd/server.crt"
               rm -f "/tmp/etcd-server.csr"
             fi
@@ -329,7 +329,7 @@ in
                 -out "/etc/kubernetes/pki/etcd/peer.crt" \
                 -days 365 \
                 -sha512 \
-                -extfile <(printf "subjectAltName=DNS:${config.networking.hostName}, IP:$(tailscale ip -4), DNS:localhost, IP:127.0.0.1")
+                -extfile <(printf "subjectAltName=DNS:${config.networking.hostName}, IP:%s, DNS:localhost, IP:127.0.0.1" "$(tailscale ip -4)")
               chmod 644 "/etc/kubernetes/pki/etcd/peer.crt"
               rm -f "/tmp/etcd-peer.csr"
             fi

@@ -26,7 +26,7 @@ in
       environment.etc = {
         "kubernetes/pki/ca.key" = {
           source = config.age.secrets."ca-kubernetes.key".path;
-          mode = "copy";
+          mode = "0600";
         };
         "kubernetes/pki/ca.crt" = {
           text = builtins.readFile "${inputs.self}/certs/ca-kubernetes.crt";
@@ -34,7 +34,7 @@ in
         };
         "kubernetes/pki/front-proxy-ca.key" = {
           source = config.age.secrets."ca-kubernetes-front-proxy.key".path;
-          mode = "copy";
+          mode = "0600";
         };
         "kubernetes/pki/front-proxy-ca.crt" = {
           text = builtins.readFile "${inputs.self}/certs/ca-kubernetes-front-proxy.crt";
@@ -42,7 +42,7 @@ in
         };
         "kubernetes/pki/etcd/ca.key" = {
           source = config.age.secrets."ca-etcd.key".path;
-          mode = "copy";
+          mode = "0600";
         };
         "kubernetes/pki/etcd/ca.crt" = {
           text = builtins.readFile "${inputs.self}/certs/ca-etcd.crt";

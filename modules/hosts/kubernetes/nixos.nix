@@ -559,7 +559,7 @@ in
           '';
         };
 
-        create-controller-manager-manifest = {
+        create-kube-controller-manager-manifest = {
           path = [
             tailscaleCfg.package
           ];
@@ -576,10 +576,10 @@ in
           };
 
           script = ''
-            if [ ! -f /etc/kubernetes/manifest/kube-controller-manager ]; then
+            if [ ! -f /etc/kubernetes/manifest/kube-controller-manager.yaml ]; then
               mkdir -p /etc/kubernetes/manifests
 
-            cat > /etc/kubernetes/manifests/kube-controller-manager <<-EOF
+            cat > /etc/kubernetes/manifests/kube-controller-manager.yaml <<-EOF
             apiVersion: v1
             kind: Pod
             metadata:
@@ -681,7 +681,7 @@ in
             status: {}
             EOF
 
-              chmod 644 /etc/kubernetes/manifests/kube-controller-manager
+              chmod 644 /etc/kubernetes/manifests/kube-controller-manager.yaml
             fi
           '';
         };

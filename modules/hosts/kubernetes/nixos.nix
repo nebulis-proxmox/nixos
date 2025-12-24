@@ -1071,6 +1071,72 @@ in
             fi
           '';
         };
+
+        create-admin-kubeconfig = {
+          path = [
+            pkgs.openssl
+            tailscaleCfg.package
+          ];
+
+          enableStrictShellChecks = true;
+          description = "Create Admin kubeconfig";
+          documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+          after = [ "tailscaled.service" ];
+          wantedBy = [ "multi-user.target" ];
+
+          serviceConfig = {
+            Type = "oneshot";
+          };
+
+          script = ''
+            if [ ! -f /etc/kubernetes/pki/ca.crt ] || [ ! -f /etc/kubernetes/pki/ca.key ]; then
+              echo "Required certs are missing, cannot create admin kubeconfig."
+              exit 1
+            fi
+
+            if [ ! -f /etc/kubernetes/admin.conf ]; then
+              openssl genpkey -algorithm ED25519 -out "/tmp/admin.key"
+
+              openssl req -new \
+                -key "/tmp/admin.key" \
+                -subj "/CN=kubernetes-admin/O=kubeadm:cluster-admins" \
+                -out "/tmp/admin.csr"
+
+              openssl x509 -req \
+                -in "/tmp/admin.csr" \
+                -CA "/etc/kubernetes/pki/ca.crt" \
+                -CAkey "/etc/kubernetes/pki/ca.key" \
+                -out "/tmp/admin.crt" \
+                -days 365 \
+                -sha512
+
+            cat > /etc/kubernetes/admin.conf <<-EOF
+            apiVersion: v1
+            kind: Config
+            clusters:
+            - name: kubernetes
+              cluster:
+                certificate-authority-data: $(base64 -w0 /etc/kubernetes/pki/ca.crt)
+                server: https://$(tailscale ip -4):6443
+            contexts:
+            - name: kubernetes-admin@kubernetes
+              context:
+                cluster: kubernetes
+                user: kubernetes-admin
+            current-context: kubernetes-admin@kubernetes
+            users:
+            - name: kubernetes-admin
+              user:
+                client-certificate-data: $(base64 -w0 /tmp/admin.crt)
+                client-key-data: $(base64 -w0 /tmp/admin.key)
+            EOF
+
+              rm -f "/tmp/admin.key" "/tmp/admin.csr" "/tmp/admin.crt"
+
+              chmod 600 "/etc/kubernetes/admin.conf"
+            fi
+          '';
+        };
       };
 
       nebulis.tailscale = {

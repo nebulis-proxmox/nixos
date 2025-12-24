@@ -100,8 +100,6 @@ in
         };
       };
 
-      # ip addr show tailscale0
-
       systemd.services = {
         create-etcd-manifest = {
           path = [
@@ -916,6 +914,8 @@ in
             EOF
 
               rm -f "/tmp/scheduler.key" "/tmp/scheduler.csr" "/tmp/scheduler.crt"
+
+              chmod 600 "/etc/kubernetes/scheduler.conf"
             fi
           '';
         };
@@ -1005,6 +1005,72 @@ in
             RestartSec = "5";
           };
         };
+
+        create-super-admin-kubeconfig = {
+          path = [
+            pkgs.openssl
+            tailscaleCfg.package
+          ];
+
+          enableStrictShellChecks = true;
+          description = "Create Super Admin kubeconfig";
+          documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+          after = [ "tailscaled.service" ];
+          wantedBy = [ "multi-user.target" ];
+
+          serviceConfig = {
+            Type = "oneshot";
+          };
+
+          script = ''
+            if [ ! -f /etc/kubernetes/pki/ca.crt ] || [ ! -f /etc/kubernetes/pki/ca.key ]; then
+              echo "Required certs are missing, cannot create super admin kubeconfig."
+              exit 1
+            fi
+
+            if [ ! -f /etc/kubernetes/super-admin.conf ]; then
+              openssl genpkey -algorithm ED25519 -out "/tmp/super-admin.key"
+
+              openssl req -new \
+                -key "/tmp/super-admin.key" \
+                -subj "/CN=kubernetes-super-admin/O=system:masters" \
+                -out "/tmp/super-admin.csr"
+
+              openssl x509 -req \
+                -in "/tmp/super-admin.csr" \
+                -CA "/etc/kubernetes/pki/ca.crt" \
+                -CAkey "/etc/kubernetes/pki/ca.key" \
+                -out "/tmp/super-admin.crt" \
+                -days 365 \
+                -sha512
+
+            cat > /etc/kubernetes/super-admin.conf <<-EOF
+            apiVersion: v1
+            kind: Config
+            clusters:
+            - name: kubernetes
+              cluster:
+                certificate-authority-data: $(base64 -w0 /etc/kubernetes/pki/ca.crt)
+                server: https://$(tailscale ip -4):6443
+            contexts:
+            - name: kubernetes-super-admin@kubernetes
+              context:
+                cluster: kubernetes
+                user: kubernetes-super-admin
+            current-context: kubernetes-super-admin@kubernetes
+            users:
+            - name: kubernetes-super-admin
+              user:
+                client-certificate-data: $(base64 -w0 /tmp/super-admin.crt)
+                client-key-data: $(base64 -w0 /tmp/super-admin.key)
+            EOF
+
+              rm -f "/tmp/super-admin.key" "/tmp/super-admin.csr" "/tmp/super-admin.crt"
+
+              chmod 600 "/etc/kubernetes/super-admin.conf"
+            fi
+          '';
+        }
       };
 
       nebulis.tailscale = {

@@ -693,7 +693,7 @@ in
             pkgs.openssl
             tailscaleCfg.package
           ];
-          
+
           enableStrictShellChecks = true;
           description = "Create Controller Manager kubeconfig";
           documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
@@ -747,10 +747,175 @@ in
                 client-certificate-data: $(base64 -w0 /tmp/controller-manager.crt)
                 client-key-data: $(base64 -w0 /tmp/controller-manager.key)
             EOF
-            
+
               rm -f "/tmp/controller-manager.key" "/tmp/controller-manager.csr" "/tmp/controller-manager.crt"
               
               chmod 600 "/etc/kubernetes/controller-manager.conf"
+            fi
+          '';
+        };
+
+        create-scheduler-manifest = {
+          path = [
+            tailscaleCfg.package
+          ];
+
+          enableStrictShellChecks = true;
+          description = "Create Kube Scheduler Manifest";
+          documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+          after = [ "tailscaled.service" ];
+          before = [ "kubelet.service" ];
+          wantedBy = [ "multi-user.target" ];
+
+          serviceConfig = {
+            Type = "oneshot";
+          };
+
+          script = ''
+            if [ ! -f /etc/kubernetes/manifest/kube-scheduler.yaml ]; then
+              mkdir -p /etc/kubernetes/manifests
+
+            cat > /etc/kubernetes/manifests/kube-scheduler.yaml <<-EOF
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                component: kube-scheduler
+                tier: control-plane
+              name: kube-scheduler
+              namespace: kube-system
+            spec:
+              containers:
+              - command:
+                - kube-scheduler
+                - --authentication-kubeconfig=/etc/kubernetes/scheduler.conf
+                - --authorization-kubeconfig=/etc/kubernetes/scheduler.conf
+                - --bind-address=127.0.0.1
+                - --kubeconfig=/etc/kubernetes/scheduler.conf
+                - --leader-elect=true
+                image: registry.k8s.io/kube-scheduler:v1.34.3
+                imagePullPolicy: IfNotPresent
+                livenessProbe:
+                  failureThreshold: 8
+                  httpGet:
+                    host: 127.0.0.1
+                    path: /livez
+                    port: probe-port
+                    scheme: HTTPS
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 15
+                name: kube-scheduler
+                ports:
+                - containerPort: 10259
+                  name: probe-port
+                  protocol: TCP
+                readinessProbe:
+                  failureThreshold: 3
+                  httpGet:
+                    host: 127.0.0.1
+                    path: /readyz
+                    port: probe-port
+                    scheme: HTTPS
+                  periodSeconds: 1
+                  timeoutSeconds: 15
+                resources:
+                  requests:
+                    cpu: 100m
+                startupProbe:
+                  failureThreshold: 24
+                  httpGet:
+                    host: 127.0.0.1
+                    path: /livez
+                    port: probe-port
+                    scheme: HTTPS
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 15
+                volumeMounts:
+                - mountPath: /etc/kubernetes/scheduler.conf
+                  name: kubeconfig
+                  readOnly: true
+              hostNetwork: true
+              priority: 2000001000
+              priorityClassName: system-node-critical
+              securityContext:
+                seccompProfile:
+                  type: RuntimeDefault
+              volumes:
+              - hostPath:
+                  path: /etc/kubernetes/scheduler.conf
+                  type: FileOrCreate
+                name: kubeconfig
+            status: {}
+            EOF
+
+              chmod 644 /etc/kubernetes/manifests/kube-scheduler.yaml
+            fi
+          '';
+        };
+
+        create-scheduler-kubeconfig = {
+          path = [
+            pkgs.openssl
+            tailscaleCfg.package
+          ];
+
+          enableStrictShellChecks = true;
+          description = "Create Scheduler kubeconfig";
+          documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+          after = [ "tailscaled.service" ];
+          before = [ "kubelet.service" ];
+          wantedBy = [ "multi-user.target" ];
+
+          serviceConfig = {
+            Type = "oneshot";
+          };
+
+          script = ''
+            if [ ! -f /etc/kubernetes/pki/ca.crt ] || [ ! -f /etc/kubernetes/pki/ca.key ]; then
+              echo "Required certs are missing, cannot create scheduler kubeconfig."
+              exit 1
+            fi
+
+            if [ ! -f /etc/kubernetes/scheduler.conf ]; then
+              openssl genpkey -algorithm ED25519 -out "/tmp/scheduler.key"
+
+              openssl req -new \
+                -key "/tmp/scheduler.key" \
+                -subj "/CN=system:kube-scheduler" \
+                -out "/tmp/scheduler.csr"
+
+              openssl x509 -req \
+                -in "/tmp/scheduler.csr" \
+                -CA "/etc/kubernetes/pki/ca.crt" \
+                -CAkey "/etc/kubernetes/pki/ca.key" \
+                -out "/tmp/scheduler.crt" \
+                -days 365 \
+                -sha512
+
+            cat > /etc/kubernetes/scheduler.conf <<-EOF
+            apiVersion: v1
+            kind: Config
+            clusters:
+            - name: kubernetes
+              cluster:
+                certificate-authority-data: $(base64 -w0 /etc/kubernetes/pki/ca.crt)
+                server: https://$(tailscale ip -4):6443
+            contexts:
+            - name: system:kube-scheduler@kubernetes
+              context:
+                cluster: kubernetes
+                user: system:kube-scheduler
+            current-context: system:kube-scheduler@kubernetes
+            users:
+            - name: system:kube-scheduler
+              user:
+                client-certificate-data: $(base64 -w0 /tmp/scheduler.crt)
+                client-key-data: $(base64 -w0 /tmp/scheduler.key)
+            EOF
+
+              rm -f "/tmp/scheduler.key" "/tmp/scheduler.csr" "/tmp/scheduler.crt"
             fi
           '';
         };

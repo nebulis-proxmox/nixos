@@ -1070,7 +1070,7 @@ in
               chmod 600 "/etc/kubernetes/super-admin.conf"
             fi
           '';
-        }
+        };
       };
 
       nebulis.tailscale = {

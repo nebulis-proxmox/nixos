@@ -147,6 +147,8 @@ in
             };
 
             script = ''
+              ${initWhileLoop}
+
               if [ ! -f /etc/kubernetes/manifest/etcd.yaml ]; then
                 mkdir -p /etc/kubernetes/manifests
 

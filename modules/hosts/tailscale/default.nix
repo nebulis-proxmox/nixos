@@ -107,6 +107,7 @@ in
       description = ''
         Submodule for configuring tailscale services
       '';
+      default = { };
       type = types.attrsOf (
         types.submodule (
           { config, ... }:

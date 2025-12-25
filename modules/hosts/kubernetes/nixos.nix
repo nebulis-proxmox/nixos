@@ -117,7 +117,14 @@ in
             else
               # Ensure no IPv6 addresses are returned nor the loopback address
               "$(ip -json -br a | jq '[.[] | .addr_info[] | select(.prefixlen > 32 | not) | select(.local != \"127.0.0.1\") | .local][0]' -r)";
-          pathPackages = if cfg.mode == "tailscale" then [ tailscaleCfg.package ] else [ pkgs.jq ];
+          pathPackages =
+            if cfg.mode == "tailscale" then
+              [ tailscaleCfg.package ]
+            else
+              [
+                pkgs.jq
+                pkgs.iproute2
+              ];
         in
         {
           create-etcd-manifest = {

@@ -117,6 +117,12 @@ in
             else
               # Ensure no IPv6 addresses are returned nor the loopback address
               "$(ip -json -br a | jq '[.[] | .addr_info[] | select(.prefixlen > 32 | not) | select(.local != \"127.0.0.1\") | .local][0]' -r)";
+          initWhileLoop = ''
+            until [ "${ipCommand}" != "null" ]; do
+              echo "Waiting for valid IP address..."
+              sleep 1
+            done
+          '';
           pathPackages =
             if cfg.mode == "tailscale" then
               [ tailscaleCfg.package ]
@@ -260,6 +266,8 @@ in
             };
 
             script = ''
+              ${initWhileLoop}
+
               if [ ! -f /etc/kubernetes/pki/etcd/ca.crt ] || [ ! -f /etc/kubernetes/pki/etcd/ca.key ]; then
                 echo "Required Etcd CA is missing, cannot create Etcd certs."
                 exit 1
@@ -352,6 +360,8 @@ in
             };
 
             script = ''
+              ${initWhileLoop}
+
               if [ ! -f /etc/kubernetes/manifest/kube-apiserver.yaml ]; then
                 mkdir -p /etc/kubernetes/manifests
 
@@ -484,6 +494,8 @@ in
             wantedBy = [ "multi-user.target" ];
 
             script = ''
+              ${initWhileLoop}
+
               if [ ! -f /etc/kubernetes/pki/ca.crt ] || [ ! -f /etc/kubernetes/pki/ca.key ]; then
                 echo "Required certs are missing, cannot create kubelet client certificates."
                 exit 1
@@ -588,6 +600,8 @@ in
             };
 
             script = ''
+              ${initWhileLoop}
+
               if [ ! -f /etc/kubernetes/manifest/kube-controller-manager.yaml ]; then
                 mkdir -p /etc/kubernetes/manifests
 
@@ -713,6 +727,8 @@ in
             };
 
             script = ''
+              ${initWhileLoop}
+
               if [ ! -f /etc/kubernetes/pki/ca.crt ] || [ ! -f /etc/kubernetes/pki/ca.key ]; then
                 echo "Required certs are missing, cannot create controller manager kubeconfig."
                 exit 1
@@ -777,6 +793,8 @@ in
             };
 
             script = ''
+              ${initWhileLoop}
+
               if [ ! -f /etc/kubernetes/manifest/kube-scheduler.yaml ]; then
                 mkdir -p /etc/kubernetes/manifests
 
@@ -875,6 +893,8 @@ in
             };
 
             script = ''
+              ${initWhileLoop}
+
               if [ ! -f /etc/kubernetes/pki/ca.crt ] || [ ! -f /etc/kubernetes/pki/ca.key ]; then
                 echo "Required certs are missing, cannot create scheduler kubeconfig."
                 exit 1
@@ -939,6 +959,8 @@ in
             };
 
             script = ''
+              ${initWhileLoop}
+
               if [ ! -f /etc/kubernetes/pki/ca.crt ] || [ ! -f /etc/kubernetes/pki/ca.key ]; then
                 echo "Required certs are missing, cannot create kubelet kubeconfig."
                 exit 1
@@ -1021,6 +1043,8 @@ in
             };
 
             script = ''
+              ${initWhileLoop}
+
               if [ ! -f /etc/kubernetes/pki/ca.crt ] || [ ! -f /etc/kubernetes/pki/ca.key ]; then
                 echo "Required certs are missing, cannot create super admin kubeconfig."
                 exit 1
@@ -1084,6 +1108,8 @@ in
             };
 
             script = ''
+              ${initWhileLoop}
+
               if [ ! -f /etc/kubernetes/pki/ca.crt ] || [ ! -f /etc/kubernetes/pki/ca.key ]; then
                 echo "Required certs are missing, cannot create admin kubeconfig."
                 exit 1

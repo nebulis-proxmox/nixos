@@ -110,7 +110,7 @@ in
             if cfg.mode == "tailscale" then
               [ "tailscaled.service" ]
             else
-              (if networking.useBr0 then [ "network-addresses-br0.service" ] else [ ]);
+              (if neworkingCfg.useBr0 then [ "network-addresses-br0.service" ] else [ ]);
           ipCommand =
             if cfg.mode == "tailscale" then
               "$(tailscale ip -4)"

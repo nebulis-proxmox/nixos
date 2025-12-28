@@ -103,6 +103,7 @@ in
           WatchdogSec = "60s";
           ExecStart = ''
             ${pkgs.cri-o}/bin/crio \
+              --cni-plugin-dir=${lib.getBin pkgs.cni-plugins}/bin \
               $CRIO_CONFIG_OPTIONS \
               $CRIO_RUNTIME_OPTIONS \
               $CRIO_STORAGE_OPTIONS \

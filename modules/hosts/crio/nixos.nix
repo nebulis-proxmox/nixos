@@ -39,7 +39,7 @@ in
           '';
           mode = "0644";
         };
-        "cni/net.d/10-crio-bridge.conf" = {
+        "cni/net.d/10-crio-bridge.conflist" = {
           text = ''
             {
               "cniVersion": "1.0.0",

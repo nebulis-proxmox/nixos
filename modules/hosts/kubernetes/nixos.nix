@@ -221,8 +221,6 @@ in
       environment.systemPackages = with pkgs; [
         kubernetes
         openssl
-        cni
-        cni-plugins
       ];
 
       age.secrets = {

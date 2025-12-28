@@ -13,10 +13,12 @@ in
       environment.systemPackages = with pkgs; [
         cri-o
         cri-tools
+        cni
+        cni-plugins
       ];
 
       environment.etc = {
-       "containers/policy.json" = {
+        "containers/policy.json" = {
           text = ''
             {
               "default": [
@@ -36,13 +38,42 @@ in
             }
           '';
           mode = "0644";
-       };
-       "crictl.yaml" = {
+        };
+        "cni/net.d/10-crio-bridge.conf" = {
+          text = ''
+            {
+              "cniVersion": "1.0.0",
+              "name": "crio",
+              "plugins": [
+                {
+                  "type": "bridge",
+                  "bridge": "cni0",
+                  "isGateway": true,
+                  "ipMasq": true,
+                  "hairpinMode": true,
+                  "ipam": {
+                    "type": "host-local",
+                    "routes": [
+                        { "dst": "0.0.0.0/0" },
+                        { "dst": "::/0" }
+                    ],
+                    "ranges": [
+                        [{ "subnet": "10.85.0.0/16" }],
+                        [{ "subnet": "1100:200::/24" }]
+                    ]
+                  }
+                }
+              ]
+            }
+          '';
+          mode = "0644";
+        };
+        "crictl.yaml" = {
           text = ''
             runtime-endpoint: unix:///var/run/crio/crio.sock
           '';
           mode = "0644";
-       };
+        };
       };
 
       systemd.services.crio = {

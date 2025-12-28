@@ -967,24 +967,27 @@ in
           '';
         };
 
-        # kubelet = {
-        #   description = "Kubernetes Kubelet";
-        #   documentation = [ "https://github.com/kubernetes/kubernetes" ];
-        #   after = [ "crio.service" ];
-        #   requires = [ "crio.service" ];
-        #   wantedBy = [ "multi-user.target" ];
+        kubernetes-init-kubelet-start = {
+          description = "Write kubelet settings and (re)start the kubelet";
+          documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+          after = [
+            "crio.service"
+            "kubernetes-init-control-plane.target"
+          ];
+          requires = [ "crio.service" ];
+          wantedBy = [ "multi-user.target" ];
 
-        #   serviceConfig = {
-        #     ExecStart = ''
-        #       ${pkgs.kubernetes}/bin/kubelet \
-        #         --config=/etc/kubernetes/kubelet/config.yaml \
-        #         --kubeconfig=/etc/kubernetes/kubelet/kubeconfig \
-        #         --v=2
-        #     '';
-        #     Restart = "on-failure";
-        #     RestartSec = "5";
-        #   };
-        # };
+          serviceConfig = {
+            ExecStart = ''
+              ${pkgs.kubernetes}/bin/kubelet \
+                --config=/etc/kubernetes/kubelet/config.yaml \
+                --kubeconfig=/etc/kubernetes/kubelet/bootstrap-kubelet.conf \
+                --v=2
+            '';
+            Restart = "on-failure";
+            RestartSec = "5";
+          };
+        };
       });
     })
     (lib.mkIf (cfg.mode == "tailscale") {

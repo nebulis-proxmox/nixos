@@ -981,7 +981,7 @@ in
             ExecStart = ''
               ${pkgs.kubernetes}/bin/kubelet \
                 --config=/etc/kubernetes/kubelet/config.yaml \
-                --kubeconfig=/etc/kubernetes/kubelet/bootstrap-kubelet.conf \
+                --kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf \
                 --v=2
             '';
             Restart = "on-failure";

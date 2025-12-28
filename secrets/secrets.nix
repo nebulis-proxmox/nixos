@@ -87,5 +87,11 @@ in
     virtualbox-nwmqpa
     utm-nwmqpa
   ];
+  "sa-kubernetes.key.age".publicKeys = [
+    nwmqpaMain
+    mzlapqMain
+    virtualbox-nwmqpa
+    utm-nwmqpa
+  ];
   # END_SECRETS
 }

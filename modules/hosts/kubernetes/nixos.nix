@@ -227,6 +227,7 @@ in
         "ca-kubernetes.key".file = inputs.self + "/secrets/ca-kubernetes.key.age";
         "ca-etcd.key".file = inputs.self + "/secrets/ca-etcd.key.age";
         "ca-kubernetes-front-proxy.key".file = inputs.self + "/secrets/ca-kubernetes-front-proxy.key.age";
+        "sa-kubernetes.key".file = inputs.self + "/secrets/sa-kubernetes.key.age";
       };
 
       environment.etc = {
@@ -252,6 +253,14 @@ in
         };
         "kubernetes/pki/etcd/ca.crt" = {
           text = builtins.readFile "${inputs.self}/certs/ca-etcd.crt";
+          mode = "0644";
+        };
+        "kubernetes/pki/pki/sa.key" = {
+          source = inputs.self + "/secrets/sa-kubernetes.key.age";
+          mode = "0600";
+        };
+        "kubernetes/pki/sa.pub" = {
+          text = builtins.readFile "${inputs.self}/certs/sa-kubernetes.pub";
           mode = "0644";
         };
         "kubernetes/kubelet/config.yaml" = {
@@ -433,25 +442,6 @@ in
             CN = "kube-apiserver-etcd-client";
           };
           expirationDays = 365;
-        };
-
-        kubernetes-init-certs-sa = {
-          path = pathPackages ++ [ pkgs.openssl ];
-
-          enableStrictShellChecks = true;
-          description = "Create Service Account Key Pair";
-          documentation = [ "https://kubernetes.io/docs" ];
-          after = afterUnits;
-          wantedBy = [ "kubernetes-init-certs.target" ];
-
-          script = ''
-            if [ ! -f /etc/kubernetes/pki/sa.key ]; then
-              openssl genrsa -out "/etc/kubernetes/pki/sa.key" 4096
-              openssl rsa -in "/etc/kubernetes/pki/sa.key" -pubout -out "/etc/kubernetes/pki/sa.pub"
-              chmod 600 "/etc/kubernetes/pki/sa.key"
-              chmod 644 "/etc/kubernetes/pki/sa.pub"
-            fi
-          '';
         };
 
         kubernetes-init-kubeconfig-admin = mkKubeconfigUnit {
@@ -967,8 +957,8 @@ in
           '';
         };
 
-        kubernetes-init-kubelet-start = {
-          description = "Write kubelet settings and (re)start the kubelet";
+        kubelet = {
+          description = "Kubelet";
           documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
           after = [
             "crio.service"
@@ -981,7 +971,8 @@ in
             ExecStart = ''
               ${pkgs.kubernetes}/bin/kubelet \
                 --config=/etc/kubernetes/kubelet/config.yaml \
-                --kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf \
+                --kubeconfig=/etc/kubernetes/kubelet.conf \
+                --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf \
                 --v=2
             '';
             Restart = "on-failure";

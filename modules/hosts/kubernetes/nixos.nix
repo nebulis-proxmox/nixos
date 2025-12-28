@@ -369,7 +369,7 @@ in
         };
 
         kubernetes-init-certs-frontproxy-client = mkCertUnit {
-          ca = "kubernetes/pki/front-proxy-ca";
+          ca = "/etc/kubernetes/pki/front-proxy-ca";
           cert = "/etc/kubernetes/pki/front-proxy-client";
           subject = {
             CN = "front-proxy-client";

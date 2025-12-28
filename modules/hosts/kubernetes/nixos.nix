@@ -183,7 +183,7 @@ let
                     name: "kubernetes",
                     cluster: {
                       "certificate-authority-data": $caData,
-                      server: "https://" + $serverHost + ":6443"
+                      server: "https://" + $serverHost + ":${cfg.apiServerPort}"
                     }
                   }
                 ],
@@ -505,7 +505,7 @@ in
             kind: Pod
             metadata:
               annotations:
-                kubeadm.kubernetes.io/etcd.advertise-client-urls: https://${ipCommand}:2379
+                kubeadm.kubernetes.io/etcd.advertise-client-urls: https://${ipCommand}:${cfg.etcdClientPort}
               labels:
                 component: etcd
                 tier: control-plane
@@ -517,12 +517,12 @@ in
                 - etcd
                 - --name=${config.networking.hostName}
                 - --data-dir=/var/lib/etcd
-                - --advertise-client-urls=https://${ipCommand}:2379
-                - --listen-client-urls=https://127.0.0.1:2379,https://${ipCommand}:2379
-                - --initial-advertise-peer-urls=https://${ipCommand}:2380
-                - --initial-cluster=${config.networking.hostName}=https://${ipCommand}:2380
+                - --advertise-client-urls=https://${ipCommand}:${cfg.etcdClientPort}
+                - --listen-client-urls=https://127.0.0.1:${cfg.etcdClientPort},https://${ipCommand}:${cfg.etcdClientPort}
+                - --initial-advertise-peer-urls=https://${ipCommand}:${cfg.etcdPeerPort}
+                - --initial-cluster=${config.networking.hostName}=https://${ipCommand}:${cfg.etcdPeerPort}
                 - --listen-metrics-urls=http://127.0.0.1:2381
-                - --listen-peer-urls=https://${ipCommand}:2380
+                - --listen-peer-urls=https://${ipCommand}:${cfg.etcdPeerPort}
                 - --client-cert-auth=true
                 - --peer-client-cert-auth=true
                 - --feature-gates=InitialCorruptCheck=true
@@ -625,7 +625,7 @@ in
             kind: Pod
             metadata:
               annotations:
-                kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: ${ipCommand}:6443
+                kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: ${ipCommand}:${cfg.apiServerPort}
               labels:
                 component: kube-apiserver
                 tier: control-plane
@@ -644,7 +644,7 @@ in
                 - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
                 - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
                 - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
-                - --etcd-servers=https://${ipCommand}:2379
+                - --etcd-servers=https://${ipCommand}:${cfg.etcdClientPort}
                 - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
                 - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
                 - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
@@ -655,11 +655,11 @@ in
                 - --requestheader-extra-headers-prefix=X-Remote-Extra-
                 - --requestheader-group-headers=X-Remote-Group
                 - --requestheader-username-headers=X-Remote-User
-                - --secure-port=6443
+                - --secure-port=${cfg.apiServerPort}
                 - --service-account-issuer=https://kubernetes.default.svc.cluster.local
                 - --service-account-key-file=/etc/kubernetes/pki/sa.pub
                 - --service-account-signing-key-file=/etc/kubernetes/pki/sa.key
-                - --service-cluster-ip-range=10.96.0.0/12
+                - --service-cluster-ip-range=${cfg.clusterIpRange}
                 - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
                 - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
                 image: registry.k8s.io/kube-apiserver:v1.34.3
@@ -676,7 +676,7 @@ in
                   timeoutSeconds: 15
                 name: kube-apiserver
                 ports:
-                - containerPort: 6443
+                - containerPort: ${cfg.apiServerPort}
                   name: probe-port
                   protocol: TCP
                 readinessProbe:
@@ -990,7 +990,7 @@ in
         services.k8s = {
           mode = "tcp";
           port = 443;
-          target = "127.0.0.1:6443";
+          target = "127.0.0.1:${cfg.apiServerPort}";
         };
       };
     })

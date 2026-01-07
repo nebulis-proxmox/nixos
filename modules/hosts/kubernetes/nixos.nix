@@ -17,6 +17,12 @@ let
       # Ensure no IPv6 addresses are returned nor the loopback address
       "$(ip -json -br a | jq '[.[] | .addr_info[] | select(.prefixlen > 32 | not) | select(.local != \"127.0.0.1\") | .local][0]' -r)";
 
+  tailscaleDnsCommand =
+    if cfg.mode == "tailscale" then
+      "$(tailscale dns status | grep -A1 'Search domains' | tail -n 1 | awk '{print $2}')";
+    else
+      null;
+
   pathPackages =
     if cfg.mode == "tailscale" then
       [ tailscaleCfg.package ]
@@ -65,7 +71,7 @@ let
 
           altNamesLine = builtins.concatStringsSep ", " (
             lib.attrsets.mapAttrsToList (
-              kind: values: builtins.concatStringsSep ", " (map (v: "${kind}:${v}") values)
+              kind: values: builtins.concatStringsSep ", " (map (v: "${kind}:${v}") (lib.lists.filter (v: v != null) values))
             ) altNames
           );
 
@@ -361,6 +367,7 @@ in
               "kubernetes.default"
               "kubernetes.default.svc"
               "kubernetes.default.svc.cluster.local"
+              (if tailscaleDnsCommand != null then "${cfg.tailscaleApiServerSvc}.${tailscaleDnsCommand}" else null)
               config.networking.hostName
             ];
           };
@@ -399,6 +406,7 @@ in
               "::1"
             ];
             DNS = [
+              (if tailscaleDnsCommand != null then "${cfg.tailscaleEtcdSvc}.${tailscaleDnsCommand}" else null)
               config.networking.hostName
               "localhost"
             ];
@@ -419,6 +427,7 @@ in
               "::1"
             ];
             DNS = [
+              (if tailscaleDnsCommand != null then "${cfg.tailscaleEtcdSvc}.${tailscaleDnsCommand}" else null)
               config.networking.hostName
               "localhost"
             ];

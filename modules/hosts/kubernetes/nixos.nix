@@ -255,7 +255,7 @@ in
           text = builtins.readFile "${inputs.self}/certs/ca-etcd.crt";
           mode = "0644";
         };
-        "kubernetes/pki/pki/sa.key" = {
+        "kubernetes/pki/sa.key" = {
           source = inputs.self + "/secrets/sa-kubernetes.key.age";
           mode = "0600";
         };

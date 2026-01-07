@@ -375,6 +375,7 @@ in
               (
                 if tailscaleDnsCommand != null then "${cfg.tailscaleApiServerSvc}.${tailscaleDnsCommand}" else null
               )
+              (if cfg.mode == "tailscale" then cfg.tailscaleApiServerSvc else null)
               config.networking.hostName
             ];
           };
@@ -414,6 +415,7 @@ in
             ];
             DNS = [
               (if tailscaleDnsCommand != null then "${cfg.tailscaleEtcdSvc}.${tailscaleDnsCommand}" else null)
+              (if cfg.mode == "tailscale" then cfg.tailscaleEtcdSvc else null)
               config.networking.hostName
               "localhost"
             ];
@@ -435,6 +437,7 @@ in
             ];
             DNS = [
               (if tailscaleDnsCommand != null then "${cfg.tailscaleEtcdSvc}.${tailscaleDnsCommand}" else null)
+              (if cfg.mode == "tailscale" then cfg.tailscaleEtcdSvc else null)
               config.networking.hostName
               "localhost"
             ];

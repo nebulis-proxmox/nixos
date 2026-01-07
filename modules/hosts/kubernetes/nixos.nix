@@ -55,7 +55,11 @@ let
       wantedByUnits ? [ "kubernetes-init-certs.target" ],
     }:
     {
-      path = [ pkgs.openssl ] ++ pathPackages;
+      path = [
+        pkgs.openssl
+        pkgs.awk
+      ]
+      ++ pathPackages;
       description = "Create ${cert}.crt Certificate";
       documentation = [ "https://kubernetes.io/docs" ];
       after = afterUnits;
@@ -71,7 +75,8 @@ let
 
           altNamesLine = builtins.concatStringsSep ", " (
             lib.attrsets.mapAttrsToList (
-              kind: values: builtins.concatStringsSep ", " (map (v: "${kind}:${v}") (lib.lists.filter (v: v != null) values))
+              kind: values:
+              builtins.concatStringsSep ", " (map (v: "${kind}:${v}") (lib.lists.filter (v: v != null) values))
             ) altNames
           );
 
@@ -367,7 +372,9 @@ in
               "kubernetes.default"
               "kubernetes.default.svc"
               "kubernetes.default.svc.cluster.local"
-              (if tailscaleDnsCommand != null then "${cfg.tailscaleApiServerSvc}.${tailscaleDnsCommand}" else null)
+              (
+                if tailscaleDnsCommand != null then "${cfg.tailscaleApiServerSvc}.${tailscaleDnsCommand}" else null
+              )
               config.networking.hostName
             ];
           };

@@ -183,7 +183,7 @@ let
                     name: "kubernetes",
                     cluster: {
                       "certificate-authority-data": $caData,
-                      server: "https://" + $serverHost + ":${cfg.apiServerPort}"
+                      server: "https://" + $serverHost + ":${toString cfg.apiServerPort}"
                     }
                   }
                 ],

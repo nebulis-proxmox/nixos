@@ -52,7 +52,7 @@ in
           };
 
           script = "tailscale serve --service=svc:${name} --${value.mode}=${toString value.port} ${value.target}";
-          preStop = "tailscale serve drain svc:k8s && sleep 10";
+          preStop = "tailscale serve drain svc:${name} && sleep 10";
           postStop = "tailscale serve clear svc:${name}";
 
           wantedBy = [ "multi-user.target" ];

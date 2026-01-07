@@ -981,16 +981,24 @@ in
         };
       });
     })
-    (lib.mkIf (cfg.mode == "tailscale") {
+    (lib.mkIf (cfg.mode == "tailscale" && cfg.kind == "control-plane") {
       nebulis.tailscale = {
         tags = [
           "kubernetes-control-plane"
         ];
 
-        services.k8s = {
-          mode = "tcp";
-          port = 443;
-          target = "127.0.0.1:${cfg.apiServerPort}";
+        services = {
+          "${cfg.tailscaleApiServerSvc}" = {
+            mode = "tcp";
+            port = 443;
+            target = "127.0.0.1:${cfg.apiServerPort}";
+          };
+
+          "${cfg.tailscaleEtcdSvc}" = {
+            mode = "tcp";
+            port = 443;
+            target = "127.0.0.1:${cfg.etcdClientPort}";
+          };
         };
       };
     })

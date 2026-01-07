@@ -31,8 +31,23 @@
         networking mode for kubernetes cluster communication
       '';
     };
-    apiServerHost = lib.mkOption {
+    tailscaleApiServerSvc = lib.mkOption {
       type = lib.types.str;
+      default = "k8s";
+      description = ''
+        tailscale service name for kubernetes api server - used if mode is tailscale
+      '';
+    };
+    tailscaleEtcdSvc = lib.mkOption {
+      type = lib.types.str;
+      default = "etcd";
+      description = ''
+        tailscale service name for etcd - used if mode is tailscale
+      '';
+    };
+    apiServerHost = lib.mkOption {
+      type = lib.types.str or lib.types.null;
+      default = null;
       description = ''
         hostname for kubernetes api server
       '';
@@ -52,7 +67,8 @@
       '';
     };
     etcdClientHost = lib.mkOption {
-      type = lib.types.str;
+      type = lib.types.str or lib.types.null;
+      default = null;
       description = ''
         hostname for etcd client communication
       '';

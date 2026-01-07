@@ -17,11 +17,13 @@
 
       shared.base = {
         enable = true;
-        consoleKeyMap = "mac-fr";        
+        consoleKeyMap = "mac-fr";
       };
 
       kubernetes = {
         enable = true;
+        mode = "tailscale";
+        kind = "control-plane";
       };
 
       tailscale = {

@@ -505,7 +505,7 @@ in
             kind: Pod
             metadata:
               annotations:
-                kubeadm.kubernetes.io/etcd.advertise-client-urls: https://${ipCommand}:${cfg.etcdClientPort}
+                kubeadm.kubernetes.io/etcd.advertise-client-urls: https://${ipCommand}:${toString cfg.etcdClientPort}
               labels:
                 component: etcd
                 tier: control-plane
@@ -517,12 +517,12 @@ in
                 - etcd
                 - --name=${config.networking.hostName}
                 - --data-dir=/var/lib/etcd
-                - --advertise-client-urls=https://${ipCommand}:${cfg.etcdClientPort}
-                - --listen-client-urls=https://127.0.0.1:${cfg.etcdClientPort},https://${ipCommand}:${cfg.etcdClientPort}
-                - --initial-advertise-peer-urls=https://${ipCommand}:${cfg.etcdPeerPort}
-                - --initial-cluster=${config.networking.hostName}=https://${ipCommand}:${cfg.etcdPeerPort}
+                - --advertise-client-urls=https://${ipCommand}:${toString cfg.etcdClientPort}
+                - --listen-client-urls=https://127.0.0.1:${toString cfg.etcdClientPort},https://${ipCommand}:${toString cfg.etcdClientPort}
+                - --initial-advertise-peer-urls=https://${ipCommand}:${toString cfg.etcdPeerPort}
+                - --initial-cluster=${config.networking.hostName}=https://${ipCommand}:${toString cfg.etcdPeerPort}
                 - --listen-metrics-urls=http://127.0.0.1:2381
-                - --listen-peer-urls=https://${ipCommand}:${cfg.etcdPeerPort}
+                - --listen-peer-urls=https://${ipCommand}:${toString cfg.etcdPeerPort}
                 - --client-cert-auth=true
                 - --peer-client-cert-auth=true
                 - --feature-gates=InitialCorruptCheck=true
@@ -625,7 +625,7 @@ in
             kind: Pod
             metadata:
               annotations:
-                kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: ${ipCommand}:${cfg.apiServerPort}
+                kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: ${ipCommand}:${toString cfg.apiServerPort}
               labels:
                 component: kube-apiserver
                 tier: control-plane
@@ -644,7 +644,7 @@ in
                 - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
                 - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
                 - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
-                - --etcd-servers=https://${ipCommand}:${cfg.etcdClientPort}
+                - --etcd-servers=https://${ipCommand}:${toString cfg.etcdClientPort}
                 - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
                 - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
                 - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
@@ -655,7 +655,7 @@ in
                 - --requestheader-extra-headers-prefix=X-Remote-Extra-
                 - --requestheader-group-headers=X-Remote-Group
                 - --requestheader-username-headers=X-Remote-User
-                - --secure-port=${cfg.apiServerPort}
+                - --secure-port=${toString cfg.apiServerPort}
                 - --service-account-issuer=https://kubernetes.default.svc.cluster.local
                 - --service-account-key-file=/etc/kubernetes/pki/sa.pub
                 - --service-account-signing-key-file=/etc/kubernetes/pki/sa.key
@@ -676,7 +676,7 @@ in
                   timeoutSeconds: 15
                 name: kube-apiserver
                 ports:
-                - containerPort: ${cfg.apiServerPort}
+                - containerPort: ${toString cfg.apiServerPort}
                   name: probe-port
                   protocol: TCP
                 readinessProbe:
@@ -991,13 +991,13 @@ in
           "${cfg.tailscaleApiServerSvc}" = {
             mode = "tcp";
             port = 443;
-            target = "127.0.0.1:${cfg.apiServerPort}";
+            target = "127.0.0.1:${toString cfg.apiServerPort}";
           };
 
           "${cfg.tailscaleEtcdSvc}" = {
             mode = "tcp";
             port = 443;
-            target = "127.0.0.1:${cfg.etcdClientPort}";
+            target = "127.0.0.1:${toString cfg.etcdClientPort}";
           };
         };
       };

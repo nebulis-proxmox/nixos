@@ -256,7 +256,7 @@ in
           mode = "0644";
         };
         "kubernetes/pki/sa.key" = {
-          source = inputs.self + "/secrets/sa-kubernetes.key.age";
+          source = config.age.secrets."sa-kubernetes.key".path;
           mode = "0600";
         };
         "kubernetes/pki/sa.pub" = {

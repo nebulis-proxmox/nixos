@@ -57,7 +57,7 @@ let
     {
       path = [
         pkgs.openssl
-        pkgs.awk
+        pkgs.gawk
       ]
       ++ pathPackages;
       description = "Create ${cert}.crt Certificate";

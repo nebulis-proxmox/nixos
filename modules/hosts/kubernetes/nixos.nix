@@ -19,7 +19,7 @@ let
 
   tailscaleDnsCommand =
     if cfg.mode == "tailscale" then
-      "$(tailscale dns status | grep -A1 'Search domains' | tail -n 1 | awk '{print $2}')";
+      "$(tailscale dns status | grep -A1 'Search domains' | tail -n 1 | awk '{print $2}')"
     else
       null;
 

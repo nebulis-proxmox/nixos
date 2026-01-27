@@ -39,7 +39,7 @@ let
       (if neworkingCfg.useBr0 then [ "network-addresses-br0.service" ] else [ ]);
 
   initWhileLoop = ''
-    until [ -z "${ipCommand}" ] && [ "${ipCommand}" != "null" ]; do
+    until [ ! -z "${ipCommand}" ] && [ "${ipCommand}" != "null" ]; do
       echo "Waiting for valid IP address..."
       sleep 1
     done

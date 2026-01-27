@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  pkgs,
   inputs,
   ...
 }:
@@ -21,6 +22,8 @@ in
       inventory.hosts."${config.networking.hostName}" = {
         # glances.enable = true;
       };
+
+      environment.enableAllTerminfo = true;
     })
     {
       assertions = lib.mkIf cfg.enable [

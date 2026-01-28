@@ -359,166 +359,110 @@ in
                 expirationDays = 365;
               };
 
+              mkKubeletClientCert = mkCertUnit {
+                ca = "/etc/kubernetes/pki/ca";
+                cert = "/etc/kubernetes/pki/apiserver-kubelet-client";
+                subject = {
+                  CN = "kube-apiserver-kubelet-client";
+                  O = "kubeadm:cluster-admins";
+                };
+                expirationDays = 365;
+              };
+
+              mkFrontProxyClientCert = mkCertUnit {
+                ca = "/etc/kubernetes/pki/front-proxy-ca";
+                cert = "/etc/kubernetes/pki/front-proxy-client";
+                subject = {
+                  CN = "front-proxy-client";
+                };
+                expirationDays = 365;
+              };
+
+              mkEtcdServerCert = mkCertUnit {
+                ca = "/etc/kubernetes/pki/etcd/ca";
+                cert = "/etc/kubernetes/pki/etcd/server";
+                subject = {
+                  CN = config.networking.hostName;
+                };
+                altNames = {
+                  IP = [
+                    ipCommand
+                    "127.0.0.1"
+                    "::1"
+                  ];
+                  DNS = [
+                    (if tailscaleDnsCommand != null then "${cfg.tailscaleEtcdSvc}.${tailscaleDnsCommand}" else null)
+                    (if cfg.mode == "tailscale" then cfg.tailscaleEtcdSvc else null)
+                    config.networking.hostName
+                    "localhost"
+                  ];
+                };
+                expirationDays = 365;
+              };
+
+              mkEtcdPeerCert = mkCertUnit {
+                ca = "/etc/kubernetes/pki/etcd/ca";
+                cert = "/etc/kubernetes/pki/etcd/peer";
+                subject = {
+                  CN = config.networking.hostName;
+                };
+                altNames = {
+                  IP = [
+                    ipCommand
+                    "127.0.0.1"
+                    "::1"
+                  ];
+                  DNS = [
+                    (if tailscaleDnsCommand != null then "${cfg.tailscaleEtcdSvc}.${tailscaleDnsCommand}" else null)
+                    (if cfg.mode == "tailscale" then cfg.tailscaleEtcdSvc else null)
+                    config.networking.hostName
+                    "localhost"
+                  ];
+                };
+                expirationDays = 365;
+              };
+
+              mkEtcdHealthcheckClientCert = mkCertUnit {
+                ca = "/etc/kubernetes/pki/etcd/ca";
+                cert = "/etc/kubernetes/pki/etcd/healthcheck-client";
+                subject = {
+                  CN = "kube-etcd-healthcheck-client";
+                };
+                expirationDays = 365;
+              };
+
+              mkEtcdApiServerClientCert = mkCertUnit {
+                ca = "/etc/kubernetes/pki/etcd/ca";
+                cert = "/etc/kubernetes/pki/apiserver-etcd-client";
+                subject = {
+                  CN = "kube-apiserver-etcd-client";
+                };
+                expirationDays = 365;
+              };
+
             in
             ''
               ${waitForNetwork}
 
-              if curl --silent --fail --insecure "https://${clusterAddr}/livez" >/dev/null; then
+              if curl --silent --fail --insecure "https://${clusterAddr}/livez" --max-time 10 >/dev/null; then
                 echo "Kubernetes API server is already running, skipping initialization of cluster."
                 exit 0
               else
                 echo "Initializing Kubernetes cluster..."
 
                 ${mkApiServerCert}
+                ${mkKubeletClientCert}
+                ${mkFrontProxyClientCert}
+                ${mkEtcdServerCert}
+                ${mkEtcdPeerCert}
+                ${mkEtcdHealthcheckClientCert}
+                ${mkEtcdApiServerClientCert}
               fi
             '';
         };
       };
 
-      # ${mkCert {
-      #   ca = "/etc/kubernetes/pki/ca";
-      #   cert = "/etc/kubernetes/pki/apiserver";
-      #   subject = {
-      #     CN = "kube-apiserver";
-      #   };
-      #   altNames = {
-      #     IP = [
-      #       ""
-      #     }
-      # }}
-      # systemd.targets = {
-      #   kubernetes-init-certs = {
-      #     description = "Kubernetes Certificate generation";
-      #     documentation = [ "https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/" ];
-      #     wantedBy = [ "multi-user.target" ];
-      #   };
-      #   kubernetes-init-kubeconfig = {
-      #     description = "Generate all kubeconfig files necessary to establish the control plane and the admin kubeconfig file";
-      #     documentation = [ "https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/" ];
-      #     after = [ "kubernetes-init-certs.target" ];
-      #     wantedBy = [ "multi-user.target" ];
-      #   };
-      #   kubernetes-init-etcd = {
-      #     description = "Generate static Pod manifest file for local etcd";
-      #     documentation = [ "https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/" ];
-      #     after = [ "kubernetes-init-kubeconfig.target" ];
-      #     wantedBy = [ "multi-user.target" ];
-      #   };
-      #   kubernetes-init-control-plane = {
-      #     description = "Generate all static Pod manifest files necessary to establish the control plane";
-      #     documentation = [ "https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/" ];
-      #     after = [ "kubernetes-init-etcd.target" ];
-      #     wantedBy = [ "multi-user.target" ];
-      #   };
-      # };
-
       # systemd.services = ({
-      #   kubernetes-init-certs-apiserver = mkCertUnit {
-      #     ca = "/etc/kubernetes/pki/ca";
-      #     cert = "/etc/kubernetes/pki/apiserver";
-      #     subject = {
-      #       CN = "kube-apiserver";
-      #     };
-      #     altNames = {
-      #       IP = [
-      #         "10.96.0.1"
-      #         ipCommand
-      #       ];
-      #       DNS = [
-      #         "kubernetes"
-      #         "kubernetes.default"
-      #         "kubernetes.default.svc"
-      #         "kubernetes.default.svc.cluster.local"
-      #         (
-      #           if tailscaleDnsCommand != null then "${cfg.tailscaleApiServerSvc}.${tailscaleDnsCommand}" else null
-      #         )
-      #         (if cfg.mode == "tailscale" then cfg.tailscaleApiServerSvc else null)
-      #         config.networking.hostName
-      #       ];
-      #     };
-      #     expirationDays = 365;
-      #   };
-
-      #   kubernetes-init-certs-apiserver-kubelet-client = mkCertUnit {
-      #     ca = "/etc/kubernetes/pki/ca";
-      #     cert = "/etc/kubernetes/pki/apiserver-kubelet-client";
-      #     subject = {
-      #       CN = "kube-apiserver-kubelet-client";
-      #       O = "kubeadm:cluster-admins";
-      #     };
-      #     expirationDays = 365;
-      #   };
-
-      #   kubernetes-init-certs-frontproxy-client = mkCertUnit {
-      #     ca = "/etc/kubernetes/pki/front-proxy-ca";
-      #     cert = "/etc/kubernetes/pki/front-proxy-client";
-      #     subject = {
-      #       CN = "front-proxy-client";
-      #     };
-      #     expirationDays = 365;
-      #   };
-
-      #   kubernetes-init-certs-etcd-server = mkCertUnit {
-      #     ca = "/etc/kubernetes/pki/etcd/ca";
-      #     cert = "/etc/kubernetes/pki/etcd/server";
-      #     subject = {
-      #       CN = config.networking.hostName;
-      #     };
-      #     altNames = {
-      #       IP = [
-      #         ipCommand
-      #         "127.0.0.1"
-      #         "::1"
-      #       ];
-      #       DNS = [
-      #         (if tailscaleDnsCommand != null then "${cfg.tailscaleEtcdSvc}.${tailscaleDnsCommand}" else null)
-      #         (if cfg.mode == "tailscale" then cfg.tailscaleEtcdSvc else null)
-      #         config.networking.hostName
-      #         "localhost"
-      #       ];
-      #     };
-      #     expirationDays = 365;
-      #   };
-
-      #   kubernetes-init-certs-etcd-peer = mkCertUnit {
-      #     ca = "/etc/kubernetes/pki/etcd/ca";
-      #     cert = "/etc/kubernetes/pki/etcd/peer";
-      #     subject = {
-      #       CN = config.networking.hostName;
-      #     };
-      #     altNames = {
-      #       IP = [
-      #         ipCommand
-      #         "127.0.0.1"
-      #         "::1"
-      #       ];
-      #       DNS = [
-      #         (if tailscaleDnsCommand != null then "${cfg.tailscaleEtcdSvc}.${tailscaleDnsCommand}" else null)
-      #         (if cfg.mode == "tailscale" then cfg.tailscaleEtcdSvc else null)
-      #         config.networking.hostName
-      #         "localhost"
-      #       ];
-      #     };
-      #     expirationDays = 365;
-      #   };
-
-      #   kubernetes-init-certs-etcd-healthcheck-client = mkCertUnit {
-      #     ca = "/etc/kubernetes/pki/etcd/ca";
-      #     cert = "/etc/kubernetes/pki/etcd/healthcheck-client";
-      #     subject = {
-      #       CN = "kube-etcd-healthcheck-client";
-      #     };
-      #     expirationDays = 365;
-      #   };
-
-      #   kubernetes-init-certs-apiserver-etcd-client = mkCertUnit {
-      #     ca = "/etc/kubernetes/pki/etcd/ca";
-      #     cert = "/etc/kubernetes/pki/apiserver-etcd-client";
-      #     subject = {
-      #       CN = "kube-apiserver-etcd-client";
-      #     };
-      #     expirationDays = 365;
-      #   };
 
       #   kubernetes-init-kubeconfig-admin = mkKubeconfigUnit {
       #     ca = "/etc/kubernetes/pki/ca";

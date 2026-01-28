@@ -38,87 +38,12 @@ let
     else
       (if neworkingCfg.useBr0 then [ "network-addresses-br0.service" ] else [ ]);
 
-  initWhileLoop = ''
+  waitForNetwork = ''
     until [ ! -z "${ipCommand}" ] && [ "${ipCommand}" != "null" ]; do
       echo "Waiting for valid IP address..."
       sleep 1
     done
   '';
-
-  mkCertUnit =
-    {
-      ca,
-      cert,
-      subject,
-      expirationDays,
-      altNames ? { },
-      wantedByUnits ? [ "kubernetes-init-certs.target" ],
-    }:
-    {
-      path = [
-        pkgs.openssl
-        pkgs.gawk
-      ]
-      ++ pathPackages;
-      description = "Create ${cert}.crt Certificate";
-      documentation = [ "https://kubernetes.io/docs" ];
-      after = afterUnits;
-      wantedBy = wantedByUnits;
-
-      enableStrictShellChecks = true;
-      script =
-        let
-          subjectString = lib.strings.concatStrings (
-            lib.attrsets.mapAttrsToList (k: v: "/${k}=${v}") subject
-          );
-          subjectArg = if subjectString == "" then "" else "-subj \"${subjectString}\"";
-
-          altNamesLine = builtins.concatStringsSep ", " (
-            lib.attrsets.mapAttrsToList (
-              kind: values:
-              builtins.concatStringsSep ", " (map (v: "${kind}:${v}") (lib.lists.filter (v: v != null) values))
-            ) altNames
-          );
-
-          altNamesExt = if altNamesLine == "" then "" else "subjectAltName = ${altNamesLine}";
-          altNamesExtArg = if altNamesExt == "" then "" else "-addext \"${altNamesExt}\"";
-          altNamesExtFileArg = if altNamesExt == "" then "" else "-extfile <(echo \"${altNamesExt}\")";
-        in
-        ''
-          ${initWhileLoop}
-
-          if [ ! -f "${ca}.crt" ] || [ ! -f "${ca}.key" ]; then
-            echo "Required ${ca} CA is missing, cannot create ${cert} certificate."
-            exit 1
-          fi
-
-          if [ ! -f "${cert}.key" ]; then
-            openssl genpkey -algorithm ED25519 -out "${cert}.key"
-            chmod 600 "${cert}.key"
-          fi
-
-          if [ ! -f "${cert}.crt" ] || ! openssl x509 -checkend 86400 -noout -in "${cert}.crt"; then
-            openssl req -new \
-              -key "${cert}.key" \
-              ${subjectArg} \
-              ${altNamesExtArg} \
-              -out "${cert}.csr"
-
-            openssl x509 -req \
-              -in "${cert}.csr" \
-              -CA "${ca}.crt" \
-              -CAkey "${ca}.key" \
-              -out "${cert}.crt" \
-              -days ${toString expirationDays} \
-              ${altNamesExtFileArg} \
-              -sha512
-            
-            chmod 644 "${cert}.crt"
-            rm -f "${cert}.csr"
-          fi
-        '';
-    };
-
   mkKubeconfigUnit =
     {
       ca,
@@ -157,7 +82,7 @@ let
           subjectArg = if subjectString == "" then "" else "-subj \"${subjectString}\"";
         in
         ''
-          ${initWhileLoop}
+          ${waitForNetwork}
 
           if [ ! -f "${ca}.crt" ] || [ ! -f "${ca}.key" ]; then
             echo "Required ${ca} CA is missing, cannot create ${kubeconfig} kubeconfig."
@@ -329,6 +254,135 @@ in
         # };
       };
 
+      systemd.services = {
+        init-kubernetes-cluster = {
+          path = [
+            pkgs.openssl
+            pkgs.jq
+          ];
+          description = "Initialize Kubernetes cluster";
+          documentation = [ "https://kubernetes.io/docs" ];
+          wantedBy = [ "multi-user.target" ];
+          enableStrictShellChecks = true;
+
+          script =
+            let
+              clusterAddr =
+                if cfg.mode == "tailscale" then
+                  "${cfg.tailscaleApiServerSvc}.${tailscaleDnsCommand}:443"
+                else
+                  "${cfg.apiServerHost}:${toString cfg.apiServerPort}";
+
+              mkCert =
+                {
+                  ca,
+                  cert,
+                  subject,
+                  expirationDays,
+                  altNames ? { },
+                }:
+                let
+                  subjectString = lib.strings.concatStrings (
+                    lib.attrsets.mapAttrsToList (k: v: "/${k}=${v}") subject
+                  );
+                  subjectArg = if subjectString == "" then "" else "-subj \"${subjectString}\"";
+
+                  altNamesLine = builtins.concatStringsSep ", " (
+                    lib.attrsets.mapAttrsToList (
+                      kind: values:
+                      builtins.concatStringsSep ", " (map (v: "${kind}:${v}") (lib.lists.filter (v: v != null) values))
+                    ) altNames
+                  );
+
+                  altNamesExt = if altNamesLine == "" then "" else "subjectAltName = ${altNamesLine}";
+                  altNamesExtArg = if altNamesExt == "" then "" else "-addext \"${altNamesExt}\"";
+                  altNamesExtFileArg = if altNamesExt == "" then "" else "-extfile <(echo \"${altNamesExt}\")";
+                in
+                ''
+                  if [ ! -f "${ca}.crt" ] || [ ! -f "${ca}.key" ]; then
+                    echo "Required ${ca} CA is missing, cannot create ${cert} certificate."
+                    exit 1
+                  fi
+
+                  if [ ! -f "${cert}.key" ]; then
+                    openssl genpkey -algorithm ED25519 -out "${cert}.key"
+                    chmod 600 "${cert}.key"
+                  fi
+
+                  if [ ! -f "${cert}.crt" ] || ! openssl x509 -checkend 86400 -noout -in "${cert}.crt"; then
+                    openssl req -new \
+                      -key "${cert}.key" \
+                      ${subjectArg} \
+                      ${altNamesExtArg} \
+                      -out "${cert}.csr"
+
+                    openssl x509 -req \
+                      -in "${cert}.csr" \
+                      -CA "${ca}.crt" \
+                      -CAkey "${ca}.key" \
+                      -out "${cert}.crt" \
+                      -days ${toString expirationDays} \
+                      ${altNamesExtFileArg} \
+                      -sha512
+                    
+                    chmod 644 "${cert}.crt"
+                    rm -f "${cert}.csr"
+                  fi
+                '';
+
+              mkApiServerCert = mkCert {
+                ca = "/etc/kubernetes/pki/ca";
+                cert = "/etc/kubernetes/pki/apiserver";
+                subject = {
+                  CN = "kube-apiserver";
+                };
+                altNames = {
+                  IP = [
+                    "10.96.0.1"
+                    ipCommand
+                  ];
+                  DNS = [
+                    "kubernetes"
+                    "kubernetes.default"
+                    "kubernetes.default.svc"
+                    "kubernetes.default.svc.cluster.local"
+                    (
+                      if tailscaleDnsCommand != null then "${cfg.tailscaleApiServerSvc}.${tailscaleDnsCommand}" else null
+                    )
+                    (if cfg.mode == "tailscale" then cfg.tailscaleApiServerSvc else null)
+                    config.networking.hostName
+                  ];
+                };
+                expirationDays = 365;
+              };
+
+            in
+            ''
+              ${waitForNetwork}
+
+              if curl --silent --fail --insecure https://${clusterAddr}/livez >/dev/null; then
+                echo "Kubernetes API server is already running, skipping initialization of cluster."
+                exit 0
+              else
+                echo "Initializing Kubernetes cluster..."
+
+                ${mkApiServerCert}
+              fi
+            '';
+        };
+      };
+
+      # ${mkCert {
+      #   ca = "/etc/kubernetes/pki/ca";
+      #   cert = "/etc/kubernetes/pki/apiserver";
+      #   subject = {
+      #     CN = "kube-apiserver";
+      #   };
+      #   altNames = {
+      #     IP = [
+      #       ""
+      #     }
+      # }}
       # systemd.targets = {
       #   kubernetes-init-certs = {
       #     description = "Kubernetes Certificate generation";
@@ -514,7 +568,7 @@ in
       #     };
 
       #     script = ''
-      #       ${initWhileLoop}
+      #       ${waitForNetwork}
 
       #       if [ ! -f /etc/kubernetes/manifest/etcd.yaml ]; then
       #         mkdir -p /etc/kubernetes/manifests
@@ -634,7 +688,7 @@ in
       #     };
 
       #     script = ''
-      #       ${initWhileLoop}
+      #       ${waitForNetwork}
 
       #       if [ ! -f /etc/kubernetes/manifest/kube-apiserver.yaml ]; then
       #         mkdir -p /etc/kubernetes/manifests

@@ -430,7 +430,9 @@ in
               };
 
               mkKubeletKubeconfig =
-                { isLocal ? false }:
+                {
+                  isLocal ? false,
+                }:
                 mkKubeconfig {
                   ca = "/etc/kubernetes/pki/ca";
                   kubeconfig = "/etc/kubernetes/kubelet.conf";
@@ -849,7 +851,7 @@ in
               if curl --silent --fail --insecure "https://${clusterAddr}/livez" --max-time 10 >/dev/null; then
                 echo "Kubernetes API server is already running, skipping initialization of cluster."
 
-                ${mkKubeletKubeconfig}
+                ${mkKubeletKubeconfig { }}
                 exit 0
               else
                 echo "Initializing Kubernetes cluster..."

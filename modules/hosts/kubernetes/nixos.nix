@@ -234,6 +234,7 @@ in
                   username,
                   group ? "",
                   expirationDays,
+                  isLocal ? false,
                 }:
                 let
                   subject =
@@ -249,6 +250,8 @@ in
                     lib.attrsets.mapAttrsToList (k: v: "/${k}=${v}") subject
                   );
                   subjectArg = if subjectString == "" then "" else "-subj \"${subjectString}\"";
+
+                  shadowedClusterAddr = if isLocal then "${ipCommand}:${toString cfg.apiServerPort}" else clusterAddr;
                 in
                 ''
                   ${waitForNetwork}
@@ -279,7 +282,7 @@ in
                       --arg caData "$(base64 -w0 ${ca}.crt)" \
                       --arg clientCertData "$(base64 -w0 ${kubeconfig}.crt)" \
                       --arg clientKeyData "$(base64 -w0 ${kubeconfig}.key)" \
-                      --arg clusterAddr "${clusterAddr}" \
+                      --arg clusterAddr "${shadowedClusterAddr}" \
                       '{
                         apiVersion: "v1",
                         kind: "Config",
@@ -426,19 +429,23 @@ in
                 expirationDays = 365;
               };
 
-              mkKubeletKubeconfig = mkKubeconfig {
-                ca = "/etc/kubernetes/pki/ca";
-                kubeconfig = "/etc/kubernetes/kubelet.conf";
-                username = "system:node:${config.networking.hostName}";
-                group = "system:nodes";
-                expirationDays = 1;
-              };
+              mkKubeletKubeconfig =
+                { isLocal ? false }:
+                mkKubeconfig {
+                  ca = "/etc/kubernetes/pki/ca";
+                  kubeconfig = "/etc/kubernetes/kubelet.conf";
+                  username = "system:node:${config.networking.hostName}";
+                  group = "system:nodes";
+                  expirationDays = 1;
+                  isLocal = isLocal;
+                };
 
               mkControllerManagerKubeconfig = mkKubeconfig {
                 ca = "/etc/kubernetes/pki/ca";
                 kubeconfig = "/etc/kubernetes/controller-manager.conf";
                 username = "system:kube-controller-manager";
                 expirationDays = 365;
+                isLocal = true;
               };
 
               mkSchedulerKubeconfig = mkKubeconfig {
@@ -446,6 +453,7 @@ in
                 kubeconfig = "/etc/kubernetes/scheduler.conf";
                 username = "system:kube-scheduler";
                 expirationDays = 365;
+                isLocal = true;
               };
 
               etcdManifest = ''
@@ -840,6 +848,8 @@ in
 
               if curl --silent --fail --insecure "https://${clusterAddr}/livez" --max-time 10 >/dev/null; then
                 echo "Kubernetes API server is already running, skipping initialization of cluster."
+
+                ${mkKubeletKubeconfig}
                 exit 0
               else
                 echo "Initializing Kubernetes cluster..."
@@ -852,7 +862,7 @@ in
                 ${mkEtcdHealthcheckClientCert}
                 ${mkEtcdApiServerClientCert}
 
-                ${mkKubeletKubeconfig}
+                ${mkKubeletKubeconfig { isLocal = true; }}
                 ${mkControllerManagerKubeconfig}
                 ${mkSchedulerKubeconfig}
 

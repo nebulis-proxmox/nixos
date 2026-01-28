@@ -259,6 +259,8 @@ in
           path = [
             pkgs.openssl
             pkgs.jq
+            pkgs.curl
+            pkgs.gawk
           ]
           ++ pathPackages;
           description = "Initialize Kubernetes cluster";

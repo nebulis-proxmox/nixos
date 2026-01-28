@@ -359,7 +359,7 @@ in
                 expirationDays = 365;
               };
 
-              mkKubeletClientCert = mkCertUnit {
+              mkKubeletClientCert = mkCert {
                 ca = "/etc/kubernetes/pki/ca";
                 cert = "/etc/kubernetes/pki/apiserver-kubelet-client";
                 subject = {
@@ -369,7 +369,7 @@ in
                 expirationDays = 365;
               };
 
-              mkFrontProxyClientCert = mkCertUnit {
+              mkFrontProxyClientCert = mkCert {
                 ca = "/etc/kubernetes/pki/front-proxy-ca";
                 cert = "/etc/kubernetes/pki/front-proxy-client";
                 subject = {
@@ -378,7 +378,7 @@ in
                 expirationDays = 365;
               };
 
-              mkEtcdServerCert = mkCertUnit {
+              mkEtcdServerCert = mkCert {
                 ca = "/etc/kubernetes/pki/etcd/ca";
                 cert = "/etc/kubernetes/pki/etcd/server";
                 subject = {
@@ -400,7 +400,7 @@ in
                 expirationDays = 365;
               };
 
-              mkEtcdPeerCert = mkCertUnit {
+              mkEtcdPeerCert = mkCert {
                 ca = "/etc/kubernetes/pki/etcd/ca";
                 cert = "/etc/kubernetes/pki/etcd/peer";
                 subject = {
@@ -422,7 +422,7 @@ in
                 expirationDays = 365;
               };
 
-              mkEtcdHealthcheckClientCert = mkCertUnit {
+              mkEtcdHealthcheckClientCert = mkCert {
                 ca = "/etc/kubernetes/pki/etcd/ca";
                 cert = "/etc/kubernetes/pki/etcd/healthcheck-client";
                 subject = {
@@ -431,7 +431,7 @@ in
                 expirationDays = 365;
               };
 
-              mkEtcdApiServerClientCert = mkCertUnit {
+              mkEtcdApiServerClientCert = mkCert {
                 ca = "/etc/kubernetes/pki/etcd/ca";
                 cert = "/etc/kubernetes/pki/apiserver-etcd-client";
                 subject = {

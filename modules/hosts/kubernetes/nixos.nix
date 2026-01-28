@@ -360,7 +360,7 @@ in
             ''
               ${waitForNetwork}
 
-              if curl --silent --fail --insecure https://${clusterAddr}/livez >/dev/null; then
+              if curl --silent --fail --insecure "https://${clusterAddr}/livez" >/dev/null; then
                 echo "Kubernetes API server is already running, skipping initialization of cluster."
                 exit 0
               else

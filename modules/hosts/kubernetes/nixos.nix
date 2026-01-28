@@ -259,7 +259,8 @@ in
           path = [
             pkgs.openssl
             pkgs.jq
-          ];
+          ]
+          ++ pathPackages;
           description = "Initialize Kubernetes cluster";
           documentation = [ "https://kubernetes.io/docs" ];
           wantedBy = [ "multi-user.target" ];

@@ -44,112 +44,6 @@ let
       sleep 1
     done
   '';
-  mkKubeconfigUnit =
-    {
-      ca,
-      kubeconfig,
-      username,
-      group ? "",
-      expirationDays,
-      wantedByUnits ? [ "kubernetes-init-kubeconfig.target" ],
-    }:
-    {
-      path = [
-        pkgs.openssl
-        pkgs.jq
-      ]
-      ++ pathPackages;
-      description = "Create ${kubeconfig} Kubeconfig";
-      documentation = [ "https://kubernetes.io/docs" ];
-      after = afterUnits;
-      wantedBy = wantedByUnits;
-      enableStrictShellChecks = true;
-
-      script =
-        let
-          subject =
-            if group == "" then
-              { CN = username; }
-            else
-              {
-                CN = username;
-                O = group;
-              };
-
-          subjectString = lib.strings.concatStrings (
-            lib.attrsets.mapAttrsToList (k: v: "/${k}=${v}") subject
-          );
-          subjectArg = if subjectString == "" then "" else "-subj \"${subjectString}\"";
-        in
-        ''
-          ${waitForNetwork}
-
-          if [ ! -f "${ca}.crt" ] || [ ! -f "${ca}.key" ]; then
-            echo "Required ${ca} CA is missing, cannot create ${kubeconfig} kubeconfig."
-            exit 1
-          fi
-
-          # TODO: handle expiration of kubeconfig
-          if [ ! -f ${kubeconfig} ]; then
-            openssl genpkey -algorithm ED25519 -out "${kubeconfig}.key"
-
-            openssl req -new \
-              -key "${kubeconfig}.key" \
-              ${subjectArg} \
-              -out "${kubeconfig}.csr"
-
-            openssl x509 -req \
-              -in "${kubeconfig}.csr" \
-              -CA "${ca}.crt" \
-              -CAkey "${ca}.key" \
-              -out "${kubeconfig}.crt" \
-              -days ${toString expirationDays} \
-              -sha512
-
-            jq -ncr \
-              --arg caData "$(base64 -w0 ${ca}.crt)" \
-              --arg clientCertData "$(base64 -w0 ${kubeconfig}.crt)" \
-              --arg clientKeyData "$(base64 -w0 ${kubeconfig}.key)" \
-              --arg serverHost "${ipCommand}" \
-              '{
-                apiVersion: "v1",
-                kind: "Config",
-                clusters: [
-                  {
-                    name: "kubernetes",
-                    cluster: {
-                      "certificate-authority-data": $caData,
-                      server: "https://" + $serverHost + ":${toString cfg.apiServerPort}"
-                    }
-                  }
-                ],
-                contexts: [
-                  {
-                    name: "${username}@kubernetes",
-                    context: {
-                      cluster: "kubernetes",
-                      user: "${username}"
-                    }
-                  }
-                ],
-                "current-context": "${username}@kubernetes",
-                users: [
-                  {
-                    name: "${username}",
-                    user: {
-                      "client-certificate-data": $clientCertData,
-                      "client-key-data": $clientKeyData
-                    }
-                  }
-                ]
-              }' > "${kubeconfig}"
-
-            rm -f "${kubeconfig}.key" "${kubeconfig}.csr" "${kubeconfig}.crt"
-
-            chmod 600 "${kubeconfig}"
-          fi
-        '';
-    };
 in
 {
   config = lib.mkMerge [
@@ -333,6 +227,98 @@ in
                   fi
                 '';
 
+              mkKubeconfig =
+                {
+                  ca,
+                  kubeconfig,
+                  username,
+                  group ? "",
+                  expirationDays,
+                }:
+                let
+                  subject =
+                    if group == "" then
+                      { CN = username; }
+                    else
+                      {
+                        CN = username;
+                        O = group;
+                      };
+
+                  subjectString = lib.strings.concatStrings (
+                    lib.attrsets.mapAttrsToList (k: v: "/${k}=${v}") subject
+                  );
+                  subjectArg = if subjectString == "" then "" else "-subj \"${subjectString}\"";
+                in
+                ''
+                  ${waitForNetwork}
+
+                  if [ ! -f "${ca}.crt" ] || [ ! -f "${ca}.key" ]; then
+                    echo "Required ${ca} CA is missing, cannot create ${kubeconfig} kubeconfig."
+                    exit 1
+                  fi
+
+                  # TODO: handle expiration of kubeconfig
+                  if [ ! -f ${kubeconfig} ]; then
+                    openssl genpkey -algorithm ED25519 -out "${kubeconfig}.key"
+
+                    openssl req -new \
+                      -key "${kubeconfig}.key" \
+                      ${subjectArg} \
+                      -out "${kubeconfig}.csr"
+
+                    openssl x509 -req \
+                      -in "${kubeconfig}.csr" \
+                      -CA "${ca}.crt" \
+                      -CAkey "${ca}.key" \
+                      -out "${kubeconfig}.crt" \
+                      -days ${toString expirationDays} \
+                      -sha512
+
+                    jq -ncr \
+                      --arg caData "$(base64 -w0 ${ca}.crt)" \
+                      --arg clientCertData "$(base64 -w0 ${kubeconfig}.crt)" \
+                      --arg clientKeyData "$(base64 -w0 ${kubeconfig}.key)" \
+                      --arg clusterAddr "${clusterAddr}" \
+                      '{
+                        apiVersion: "v1",
+                        kind: "Config",
+                        clusters: [
+                          {
+                            name: "kubernetes",
+                            cluster: {
+                              "certificate-authority-data": $caData,
+                              server: "https://" + $clusterAddr
+                            }
+                          }
+                        ],
+                        contexts: [
+                          {
+                            name: "${username}@kubernetes",
+                            context: {
+                              cluster: "kubernetes",
+                              user: "${username}"
+                            }
+                          }
+                        ],
+                        "current-context": "${username}@kubernetes",
+                        users: [
+                          {
+                            name: "${username}",
+                            user: {
+                              "client-certificate-data": $clientCertData,
+                              "client-key-data": $clientKeyData
+                            }
+                          }
+                        ]
+                      }' > "${kubeconfig}"
+
+                    rm -f "${kubeconfig}.key" "${kubeconfig}.csr" "${kubeconfig}.crt"
+
+                    chmod 600 "${kubeconfig}"
+                  fi
+                '';
+
               mkApiServerCert = mkCert {
                 ca = "/etc/kubernetes/pki/ca";
                 cert = "/etc/kubernetes/pki/apiserver";
@@ -440,6 +426,125 @@ in
                 expirationDays = 365;
               };
 
+              mkKubeletKubeconfig = mkKubeconfig {
+                ca = "/etc/kubernetes/pki/ca";
+                kubeconfig = "/etc/kubernetes/kubelet.conf";
+                username = "system:node:${config.networking.hostName}";
+                group = "system:nodes";
+                expirationDays = 1;
+              };
+
+              mkControllerManagerKubeconfig = mkKubeconfig {
+                ca = "/etc/kubernetes/pki/ca";
+                kubeconfig = "/etc/kubernetes/controller-manager.conf";
+                username = "system:kube-controller-manager";
+                expirationDays = 365;
+              };
+
+              mkSchedulerKubeconfig = mkKubeconfig {
+                ca = "/etc/kubernetes/pki/ca";
+                kubeconfig = "/etc/kubernetes/scheduler.conf";
+                username = "system:kube-scheduler";
+                expirationDays = 365;
+              };
+
+              etcdManifest = ''
+                apiVersion: v1
+                kind: Pod
+                metadata:
+                  annotations:
+                    kubeadm.kubernetes.io/etcd.advertise-client-urls: https://${ipCommand}:${toString cfg.etcdClientPort}
+                  labels:
+                    component: etcd
+                    tier: control-plane
+                  name: etcd
+                  namespace: kube-system
+                spec:
+                  containers:
+                  - command:
+                    - etcd
+                    - --name=${config.networking.hostName}
+                    - --data-dir=/var/lib/etcd
+                    - --advertise-client-urls=https://${ipCommand}:${toString cfg.etcdClientPort}
+                    - --listen-client-urls=https://127.0.0.1:${toString cfg.etcdClientPort},https://${ipCommand}:${toString cfg.etcdClientPort}
+                    - --initial-advertise-peer-urls=https://${ipCommand}:${toString cfg.etcdPeerPort}
+                    - --initial-cluster=${config.networking.hostName}=https://${ipCommand}:${toString cfg.etcdPeerPort}
+                    - --listen-metrics-urls=http://127.0.0.1:2381
+                    - --listen-peer-urls=https://${ipCommand}:${toString cfg.etcdPeerPort}
+                    - --client-cert-auth=true
+                    - --peer-client-cert-auth=true
+                    - --feature-gates=InitialCorruptCheck=true
+                    - --snapshot-count=10000
+                    - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+                    - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+                    - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+                    - --key-file=/etc/kubernetes/pki/etcd/server.key
+                    - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+                    - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+                    - --watch-progress-notify-interval=5s
+                    image: registry.k8s.io/etcd:3.6.5-0
+                    imagePullPolicy: IfNotPresent
+                    livenessProbe:
+                      failureThreshold: 8
+                      httpGet:
+                        host: 127.0.0.1
+                        path: /livez
+                        port: probe-port
+                        scheme: HTTP
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                      timeoutSeconds: 15
+                    name: etcd
+                    ports:
+                    - containerPort: 2381
+                      name: probe-port
+                      protocol: TCP
+                    readinessProbe:
+                      failureThreshold: 3
+                      httpGet:
+                        host: 127.0.0.1
+                        path: /readyz
+                        port: probe-port
+                        scheme: HTTP
+                      periodSeconds: 1
+                      timeoutSeconds: 15
+                    resources:
+                      requests:
+                        cpu: 100m
+                        memory: 100Mi
+                    startupProbe:
+                      failureThreshold: 24
+                      httpGet:
+                        host: 127.0.0.1
+                        path: /readyz
+                        port: probe-port
+                        scheme: HTTP
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                      timeoutSeconds: 15
+                    volumeMounts:
+                    - mountPath: /var/lib/etcd
+                      name: etcd-data
+                    - mountPath: /etc/kubernetes/pki/etcd
+                      name: etcd-certs
+                  hostNetwork: true
+                  priority: 2000001000
+                  priorityClassName: system-node-critical
+                  securityContext:
+                    seccompProfile:
+                      type: RuntimeDefault
+                  volumes:
+                  - hostPath:
+                      path: /etc/kubernetes/pki/etcd
+                      type: DirectoryOrCreate
+                    name: etcd-certs
+                  - hostPath:
+                      path: /var/lib/etcd
+                      type: DirectoryOrCreate
+                    name: etcd-data
+                status: {}
+              '';
+
             in
             ''
               ${waitForNetwork}
@@ -457,6 +562,18 @@ in
                 ${mkEtcdPeerCert}
                 ${mkEtcdHealthcheckClientCert}
                 ${mkEtcdApiServerClientCert}
+
+                ${mkKubeletKubeconfig}
+                ${mkControllerManagerKubeconfig}
+                ${mkSchedulerKubeconfig}
+
+                mkdir -p /etc/kubernetes/manifests
+
+              cat > /etc/kubernetes/manifests/etcd.yaml <<-EOF
+              ${etcdManifest}
+              EOF
+
+                chmod 644 /etc/kubernetes/manifests/etcd.yaml
               fi
             '';
         };
@@ -478,148 +595,6 @@ in
       #     username = "kubernetes-super-admin";
       #     group = "system:masters";
       #     expirationDays = 365;
-      #   };
-
-      #   kubernetes-init-kubeconfig-bootstrap-kubelet = mkKubeconfigUnit {
-      #     ca = "/etc/kubernetes/pki/ca";
-      #     kubeconfig = "/etc/kubernetes/bootstrap-kubelet.conf";
-      #     username = "system:node:${config.networking.hostName}";
-      #     group = "system:nodes";
-      #     expirationDays = 1;
-      #   };
-
-      #   kubernetes-init-kubeconfig-controller-manager = mkKubeconfigUnit {
-      #     ca = "/etc/kubernetes/pki/ca";
-      #     kubeconfig = "/etc/kubernetes/controller-manager.conf";
-      #     username = "system:kube-controller-manager";
-      #     expirationDays = 365;
-      #   };
-
-      #   kubernetes-init-kubeconfig-scheduler = mkKubeconfigUnit {
-      #     ca = "/etc/kubernetes/pki/ca";
-      #     kubeconfig = "/etc/kubernetes/scheduler.conf";
-      #     username = "system:kube-scheduler";
-      #     expirationDays = 365;
-      #   };
-
-      #   kubernetes-init-etcd-local = {
-      #     path = pathPackages;
-      #     enableStrictShellChecks = true;
-      #     description = "Generate the static Pod manifest file for a local, single-node local etcd instance";
-      #     documentation = [ "https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/" ];
-      #     after = afterUnits;
-      #     wantedBy = [ "kubernetes-init-etcd.target" ];
-
-      #     serviceConfig = {
-      #       Type = "oneshot";
-      #     };
-
-      #     script = ''
-      #       ${waitForNetwork}
-
-      #       if [ ! -f /etc/kubernetes/manifest/etcd.yaml ]; then
-      #         mkdir -p /etc/kubernetes/manifests
-
-      #       cat > /etc/kubernetes/manifests/etcd.yaml <<-EOF
-      #       apiVersion: v1
-      #       kind: Pod
-      #       metadata:
-      #         annotations:
-      #           kubeadm.kubernetes.io/etcd.advertise-client-urls: https://${ipCommand}:${toString cfg.etcdClientPort}
-      #         labels:
-      #           component: etcd
-      #           tier: control-plane
-      #         name: etcd
-      #         namespace: kube-system
-      #       spec:
-      #         containers:
-      #         - command:
-      #           - etcd
-      #           - --name=${config.networking.hostName}
-      #           - --data-dir=/var/lib/etcd
-      #           - --advertise-client-urls=https://${ipCommand}:${toString cfg.etcdClientPort}
-      #           - --listen-client-urls=https://127.0.0.1:${toString cfg.etcdClientPort},https://${ipCommand}:${toString cfg.etcdClientPort}
-      #           - --initial-advertise-peer-urls=https://${ipCommand}:${toString cfg.etcdPeerPort}
-      #           - --initial-cluster=${config.networking.hostName}=https://${ipCommand}:${toString cfg.etcdPeerPort}
-      #           - --listen-metrics-urls=http://127.0.0.1:2381
-      #           - --listen-peer-urls=https://${ipCommand}:${toString cfg.etcdPeerPort}
-      #           - --client-cert-auth=true
-      #           - --peer-client-cert-auth=true
-      #           - --feature-gates=InitialCorruptCheck=true
-      #           - --snapshot-count=10000
-      #           - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
-      #           - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
-      #           - --cert-file=/etc/kubernetes/pki/etcd/server.crt
-      #           - --key-file=/etc/kubernetes/pki/etcd/server.key
-      #           - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
-      #           - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
-      #           - --watch-progress-notify-interval=5s
-      #           image: registry.k8s.io/etcd:3.6.5-0
-      #           imagePullPolicy: IfNotPresent
-      #           livenessProbe:
-      #             failureThreshold: 8
-      #             httpGet:
-      #               host: 127.0.0.1
-      #               path: /livez
-      #               port: probe-port
-      #               scheme: HTTP
-      #             initialDelaySeconds: 10
-      #             periodSeconds: 10
-      #             timeoutSeconds: 15
-      #           name: etcd
-      #           ports:
-      #           - containerPort: 2381
-      #             name: probe-port
-      #             protocol: TCP
-      #           readinessProbe:
-      #             failureThreshold: 3
-      #             httpGet:
-      #               host: 127.0.0.1
-      #               path: /readyz
-      #               port: probe-port
-      #               scheme: HTTP
-      #             periodSeconds: 1
-      #             timeoutSeconds: 15
-      #           resources:
-      #             requests:
-      #               cpu: 100m
-      #               memory: 100Mi
-      #           startupProbe:
-      #             failureThreshold: 24
-      #             httpGet:
-      #               host: 127.0.0.1
-      #               path: /readyz
-      #               port: probe-port
-      #               scheme: HTTP
-      #             initialDelaySeconds: 10
-      #             periodSeconds: 10
-      #             timeoutSeconds: 15
-      #           volumeMounts:
-      #           - mountPath: /var/lib/etcd
-      #             name: etcd-data
-      #           - mountPath: /etc/kubernetes/pki/etcd
-      #             name: etcd-certs
-      #         hostNetwork: true
-      #         priority: 2000001000
-      #         priorityClassName: system-node-critical
-      #         securityContext:
-      #           seccompProfile:
-      #             type: RuntimeDefault
-      #         volumes:
-      #         - hostPath:
-      #             path: /etc/kubernetes/pki/etcd
-      #             type: DirectoryOrCreate
-      #           name: etcd-certs
-      #         - hostPath:
-      #             path: /var/lib/etcd
-      #             type: DirectoryOrCreate
-      #           name: etcd-data
-      #       status: {}
-      #       EOF
-
-      #         chmod 644 /etc/kubernetes/manifests/etcd.yaml
-      #       fi
-      #     '';
       #   };
 
       #   kubernetes-init-control-plane-apiserver = {

@@ -44,6 +44,57 @@ let
       sleep 1
     done
   '';
+
+  kubeletManifest = ''
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    authentication:
+      anonymous:
+        enabled: false
+      webhook:
+        cacheTTL: 0s
+        enabled: true
+      x509:
+        clientCAFile: /etc/kubernetes/pki/ca.crt
+    authorization:
+      mode: Webhook
+      webhook:
+        cacheAuthorizedTTL: 0s
+        cacheUnauthorizedTTL: 0s
+    cgroupDriver: systemd
+    clusterDNS:
+    - 10.96.0.10
+    clusterDomain: cluster.local
+    containerRuntimeEndpoint: unix:///var/run/crio/crio.sock
+    cpuManagerReconcilePeriod: 0s
+    crashLoopBackOff: {}
+    evictionPressureTransitionPeriod: 0s
+    fileCheckFrequency: 0s
+    healthzBindAddress: 127.0.0.1
+    healthzPort: 10248
+    httpCheckFrequency: 0s
+    imageMaximumGCAge: 0s
+    imageMinimumGCAge: 0s
+    kind: KubeletConfiguration
+    logging:
+      flushFrequency: 0
+      options:
+        json:
+          infoBufferSize: "0"
+        text:
+          infoBufferSize: "0"
+      verbosity: 0
+    memorySwap: {}
+    nodeStatusReportFrequency: 0s
+    nodeStatusUpdateFrequency: 0s
+    rotateCertificates: true
+    runtimeRequestTimeout: 0s
+    shutdownGracePeriod: 0s
+    shutdownGracePeriodCriticalPods: 0s
+    staticPodPath: /etc/kubernetes/manifests
+    streamingConnectionIdleTimeout: 0s
+    syncFrequency: 0s
+    volumeStatsAggPeriod: 0s
+  '';
 in
 {
   config = lib.mkMerge [
@@ -94,56 +145,7 @@ in
           mode = "0644";
         };
         "kubernetes/kubelet/config.yaml" = {
-          text = ''
-            apiVersion: kubelet.config.k8s.io/v1beta1
-            authentication:
-              anonymous:
-                enabled: false
-              webhook:
-                cacheTTL: 0s
-                enabled: true
-              x509:
-                clientCAFile: /etc/kubernetes/pki/ca.crt
-            authorization:
-              mode: Webhook
-              webhook:
-                cacheAuthorizedTTL: 0s
-                cacheUnauthorizedTTL: 0s
-            cgroupDriver: systemd
-            clusterDNS:
-            - 10.96.0.10
-            clusterDomain: cluster.local
-            containerRuntimeEndpoint: unix:///var/run/crio/crio.sock
-            cpuManagerReconcilePeriod: 0s
-            crashLoopBackOff: {}
-            evictionPressureTransitionPeriod: 0s
-            fileCheckFrequency: 0s
-            healthzBindAddress: 127.0.0.1
-            healthzPort: 10248
-            httpCheckFrequency: 0s
-            imageMaximumGCAge: 0s
-            imageMinimumGCAge: 0s
-            kind: KubeletConfiguration
-            logging:
-              flushFrequency: 0
-              options:
-                json:
-                  infoBufferSize: "0"
-                text:
-                  infoBufferSize: "0"
-              verbosity: 0
-            memorySwap: {}
-            nodeStatusReportFrequency: 0s
-            nodeStatusUpdateFrequency: 0s
-            rotateCertificates: true
-            runtimeRequestTimeout: 0s
-            shutdownGracePeriod: 0s
-            shutdownGracePeriodCriticalPods: 0s
-            staticPodPath: /etc/kubernetes/manifests
-            streamingConnectionIdleTimeout: 0s
-            syncFrequency: 0s
-            volumeStatsAggPeriod: 0s
-          '';
+          text = kubeletManifest;
           mode = "0644";
         };
       };
@@ -438,6 +440,19 @@ in
                   kubeconfig = "/etc/kubernetes/kubelet.conf";
                   username = "system:node:${config.networking.hostName}";
                   group = "system:nodes";
+                  expirationDays = 1;
+                  isLocal = isLocal;
+                };
+
+              mkSuperAdminKubeconfig =
+                {
+                  isLocal ? false,
+                }:
+                mkKubeconfig {
+                  ca = "/etc/kubernetes/pki/ca";
+                  kubeconfig = "/etc/kubernetes/admin.conf";
+                  username = "kubernetes-super-admin";
+                  group = "system:masters";
                   expirationDays = 1;
                   isLocal = isLocal;
                 };
@@ -844,6 +859,22 @@ in
                     name: kubeconfig
                 status: {}
               '';
+
+              kubeletConfigMap = builtins.toJSON ({
+                apiVersion = "v1";
+                kind = "ConfigMap";
+                metadata = {
+                  name = "kubelet-config";
+                  namespace = "kube-system";
+                  annotations = {
+                    "kubeadm.kubernetes.io/component-config.hash" =
+                      "sha256:${builtins.hashString "sha256" kubeletManifest}";
+                  };
+                };
+                data = {
+                  kubelet = kubeletManifest;
+                };
+              });
             in
             ''
               ${waitForNetwork}
@@ -865,6 +896,7 @@ in
                 ${mkEtcdApiServerClientCert}
 
                 ${mkKubeletKubeconfig { isLocal = true; }}
+                ${mkSuperAdminKubeconfig { isLocal = true; }}
                 ${mkControllerManagerKubeconfig}
                 ${mkSchedulerKubeconfig}
 
@@ -893,6 +925,20 @@ in
               EOF
 
                 chmod 644 /etc/kubernetes/manifests/kube-scheduler.yaml
+
+                ${pkgs.kubernetes}/bin/kubelet --config=/etc/kubernetes/kubelet/config.yaml --kubeconfig=/etc/kubernetes/kubelet.conf &
+
+                kubeletPid=$!
+
+                # wait for kubelet to create the static pods
+
+                sleep 5
+
+                kill -2 $kubeletPid
+
+                echo '${kubeletConfigMap}'
+                # ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
+
               fi
             '';
         };

@@ -936,7 +936,7 @@ in
 
                 kill -2 $kubeletPid
 
-                echo '${kubeletConfigMap}'
+                echo -e '${kubeletConfigMap}'
                 # ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
 
               fi

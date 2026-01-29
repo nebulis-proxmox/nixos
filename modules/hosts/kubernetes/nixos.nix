@@ -1390,7 +1390,7 @@ in
                     tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
               '';
 
-              kubeProxyConfigMap = lib.escape ["\"" "$"] builtins.toJSON ({
+              kubeProxyConfigMap = lib.escape ["\"" "$"] (builtins.toJSON ({
                 apiVersion = "v1";
                 kind = "ConfigMap";
                 metadata = {
@@ -1409,9 +1409,9 @@ in
                   "config.conf" = kubeProxyConfig;
                   "kubeconfig.conf" = kubeProxyKubeconfig;
                 };
-              });
+              }));
 
-              kubeProxyDaemonSet = lib.escape ["\"" "$"] builtins.toJSON ({
+              kubeProxyDaemonSet = lib.escape ["\"" "$"] (builtins.toJSON ({
                 apiVersion = "apps/v1";
                 kind = "DaemonSet";
                 metadata = {
@@ -1519,18 +1519,18 @@ in
                   numberMisscheduled = 0;
                   numberReady = 0;
                 };
-              });
+              }));
 
-              kubeProxyServiceAccount = lib.escape ["\"" "$"] builtins.toJSON ({
+              kubeProxyServiceAccount = lib.escape ["\"" "$"] (builtins.toJSON ({
                 apiVersion = "v1";
                 kind = "ServiceAccount";
                 metadata = {
                   name = "kube-proxy";
                   namespace = "kube-system";
                 };
-              });
+              }));
 
-              kubeProxyRoleBinding = lib.escape ["\"" "$"] builtins.toJSON ({
+              kubeProxyRoleBinding = lib.escape ["\"" "$"] (builtins.toJSON ({
                 apiVersion = "rbac.authorization.k8s.io/v1";
                 kind = "ClusterRoleBinding";
                 metadata = {
@@ -1548,9 +1548,9 @@ in
                     namespace = "kube-system";
                   }
                 ];
-              });
+              }));
 
-              kubeProxyRole = lib.escape ["\"" "$"] builtins.toJSON ({
+              kubeProxyRole = lib.escape ["\"" "$"] (builtins.toJSON ({
                 apiVersion = "rbac.authorization.k8s.io/v1";
                 kind = "Role";
                 metadata = {
@@ -1564,9 +1564,9 @@ in
                     verbs = [ "get" ];
                   }
                 ];
-              });
+              }));
 
-              kubeProxyRoleBindingNode = lib.escape ["\"" "$"] builtins.toJSON ({
+              kubeProxyRoleBindingNode = lib.escape ["\"" "$"] (builtins.toJSON ({
                 apiVersion = "rbac.authorization.k8s.io/v1";
                 kind = "RoleBinding";
                 metadata = {
@@ -1588,7 +1588,7 @@ in
                     name = "system:bootstrappers:kubeadm:default-node-token";
                   }
                 ];
-              });
+              }));
             in
             ''
               ${waitForNetwork}

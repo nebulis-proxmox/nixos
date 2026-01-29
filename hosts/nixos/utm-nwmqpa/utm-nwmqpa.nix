@@ -23,7 +23,6 @@
       kubernetes = {
         enable = true;
         mode = "tailscale";
-        kind = "control-plane";
       };
 
       tailscale = {

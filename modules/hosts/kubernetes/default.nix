@@ -12,11 +12,13 @@
       '';
     };
     kind = lib.mkOption {
-      type = lib.types.enum [
-        "control-plane"
-        "worker"
-      ];
-      default = "control-plane";
+      type = lib.types.listOf (
+        lib.types.enum [
+          "control-plane"
+          "worker"
+        ]
+      );
+      default = [ "control-plane" ];
       description = ''
         kind of kubernetes node
       '';

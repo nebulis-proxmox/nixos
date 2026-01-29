@@ -1390,7 +1390,7 @@ in
                     tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
               '';
 
-              kubeProxyConfigMap = lib.escape ["\"", "$"] builtins.toJSON ({
+              kubeProxyConfigMap = lib.escape ["\"" "$"] builtins.toJSON ({
                 apiVersion = "v1";
                 kind = "ConfigMap";
                 metadata = {
@@ -1411,7 +1411,7 @@ in
                 };
               });
 
-              kubeProxyDaemonSet = lib.escape ["\"", "$"] builtins.toJSON ({
+              kubeProxyDaemonSet = lib.escape ["\"" "$"] builtins.toJSON ({
                 apiVersion = "apps/v1";
                 kind = "DaemonSet";
                 metadata = {
@@ -1521,7 +1521,7 @@ in
                 };
               });
 
-              kubeProxyServiceAccount = lib.escape ["\"", "$"] builtins.toJSON ({
+              kubeProxyServiceAccount = lib.escape ["\"" "$"] builtins.toJSON ({
                 apiVersion = "v1";
                 kind = "ServiceAccount";
                 metadata = {
@@ -1530,7 +1530,7 @@ in
                 };
               });
 
-              kubeProxyRoleBinding = lib.escape ["\"", "$"] builtins.toJSON ({
+              kubeProxyRoleBinding = lib.escape ["\"" "$"] builtins.toJSON ({
                 apiVersion = "rbac.authorization.k8s.io/v1";
                 kind = "ClusterRoleBinding";
                 metadata = {
@@ -1550,7 +1550,7 @@ in
                 ];
               });
 
-              kubeProxyRole = lib.escape ["\"", "$"] builtins.toJSON ({
+              kubeProxyRole = lib.escape ["\"" "$"] builtins.toJSON ({
                 apiVersion = "rbac.authorization.k8s.io/v1";
                 kind = "Role";
                 metadata = {
@@ -1566,7 +1566,7 @@ in
                 ];
               });
 
-              kubeProxyRoleBindingNode = lib.escape ["\"", "$"] builtins.toJSON ({
+              kubeProxyRoleBindingNode = lib.escape ["\"" "$"] builtins.toJSON ({
                 apiVersion = "rbac.authorization.k8s.io/v1";
                 kind = "RoleBinding";
                 metadata = {

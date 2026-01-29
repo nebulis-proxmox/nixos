@@ -1390,7 +1390,7 @@ in
                     tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
               '';
 
-              kubeProxyConfigMap = builtins.toJSON ({
+              kubeProxyConfigMap = lib.escape ["\"", "$"] builtins.toJSON ({
                 apiVersion = "v1";
                 kind = "ConfigMap";
                 metadata = {
@@ -1411,7 +1411,7 @@ in
                 };
               });
 
-              kubeProxyDaemonSet = builtins.toJSON ({
+              kubeProxyDaemonSet = lib.escape ["\"", "$"] builtins.toJSON ({
                 apiVersion = "apps/v1";
                 kind = "DaemonSet";
                 metadata = {
@@ -1521,7 +1521,7 @@ in
                 };
               });
 
-              kubeProxyServiceAccount = builtins.toJSON ({
+              kubeProxyServiceAccount = lib.escape ["\"", "$"] builtins.toJSON ({
                 apiVersion = "v1";
                 kind = "ServiceAccount";
                 metadata = {
@@ -1530,7 +1530,7 @@ in
                 };
               });
 
-              kubeProxyRoleBinding = builtins.toJSON ({
+              kubeProxyRoleBinding = lib.escape ["\"", "$"] builtins.toJSON ({
                 apiVersion = "rbac.authorization.k8s.io/v1";
                 kind = "ClusterRoleBinding";
                 metadata = {
@@ -1550,7 +1550,7 @@ in
                 ];
               });
 
-              kubeProxyRole = builtins.toJSON ({
+              kubeProxyRole = lib.escape ["\"", "$"] builtins.toJSON ({
                 apiVersion = "rbac.authorization.k8s.io/v1";
                 kind = "Role";
                 metadata = {
@@ -1566,7 +1566,7 @@ in
                 ];
               });
 
-              kubeProxyRoleBindingNode = builtins.toJSON ({
+              kubeProxyRoleBindingNode = lib.escape ["\"", "$"] builtins.toJSON ({
                 apiVersion = "rbac.authorization.k8s.io/v1";
                 kind = "RoleBinding";
                 metadata = {
@@ -1706,12 +1706,12 @@ in
                 echo -e '${coreDnsDeployment}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
                 echo -e '${coreDnsService}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
 
-                echo -e '${kubeProxyConfigMap}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e '${kubeProxyDaemonSet}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e '${kubeProxyServiceAccount}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e '${kubeProxyRoleBinding}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e '${kubeProxyRole}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e '${kubeProxyRoleBindingNode}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
+                echo -e "${kubeProxyConfigMap}" | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
+                echo -e "${kubeProxyDaemonSet}" | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
+                echo -e "${kubeProxyServiceAccount}" | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
+                echo -e "${kubeProxyRoleBinding}" | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
+                echo -e "${kubeProxyRole}" | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
+                echo -e "${kubeProxyRoleBindingNode}" | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
 
                 kill -2 $kubeletPid
 

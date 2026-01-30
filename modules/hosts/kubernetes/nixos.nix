@@ -82,7 +82,7 @@ let
       subjectString = lib.strings.concatStrings (
         lib.attrsets.mapAttrsToList (k: v: "/${k}=${v}") subject
       );
-      subjectArg = if subjectString == "" then "" else "-subj \"${subjectString}\"";
+      subjectArg = if subjectString == "" then "" else "-subj '${subjectString}'";
 
       altNamesLine = builtins.concatStringsSep ", " (
         lib.attrsets.mapAttrsToList (
@@ -95,7 +95,7 @@ let
       altNamesExtArg = if altNamesExt == "" then "" else "-addext \"${altNamesExt}\"";
       altNamesExtFileArg = if altNamesExt == "" then "" else "-extfile <(echo \"${altNamesExt}\")";
     in
-    "mkCert \"${ca}\" \"${cert}\" \"${toString expirationDays}\" \"${subjectArg}\" \"${altNamesExtArg}\"";
+    "mkCert \"${ca}\" \"${cert}\" \"${toString expirationDays}\" \"${subjectString}\" \"${altNamesExt}\"";
 
   mkKubeconfigFunction =
     builtins.replaceStrings

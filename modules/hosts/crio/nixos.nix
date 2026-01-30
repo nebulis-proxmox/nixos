@@ -15,6 +15,7 @@ in
         cri-tools
         cni
         cni-plugins
+        calicoctl
       ];
 
       environment.etc = {
@@ -39,34 +40,6 @@ in
           '';
           mode = "0644";
         };
-        "cni/net.d/10-crio-bridge.conflist" = {
-          text = ''
-            {
-              "cniVersion": "1.0.0",
-              "name": "crio",
-              "plugins": [
-                {
-                  "type": "bridge",
-                  "bridge": "cni0",
-                  "isGateway": true,
-                  "ipMasq": true,
-                  "hairpinMode": true,
-                  "ipam": {
-                    "type": "host-local",
-                    "routes": [
-                        { "dst": "0.0.0.0/0" },
-                        { "dst": "::/0" }
-                    ],
-                    "ranges": [
-                        [{ "subnet": "10.96.0.0/16" }]
-                    ]
-                  }
-                }
-              ]
-            }
-          '';
-          mode = "0644";
-        };
         "crictl.yaml" = {
           text = ''
             runtime-endpoint: unix:///var/run/crio/crio.sock
@@ -79,6 +52,7 @@ in
         path = [
           pkgs.cri-o
           pkgs.mount
+          pkgs.coreutils
         ];
 
         wantedBy = [ "multi-user.target" ];

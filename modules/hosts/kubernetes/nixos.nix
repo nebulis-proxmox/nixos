@@ -10,6 +10,14 @@ let
   neworkingCfg = config.nebulis.network;
   tailscaleCfg = config.nebulis.tailscale;
 
+  thenOrNull = condition: value: if condition then value else null;
+
+  indent =
+    n: str:
+    lib.strings.concatStringsSep ("\n" + (lib.concatStrings (lib.replicate n " "))) (
+      lib.strings.splitString "\n" str
+    );
+
   ipCommand =
     if cfg.mode == "tailscale" then
       "$(tailscale ip -4)"
@@ -17,11 +25,21 @@ let
       # Ensure no IPv6 addresses are returned nor the loopback address
       "$(ip -json -br a | jq '[.[] | .addr_info[] | select(.prefixlen > 32 | not) | select(.local != \"127.0.0.1\") | .local][0]' -r)";
 
-  tailscaleDnsCommand =
+  tailscaleDnsCommand = thenOrNull (
+    cfg.mode == "tailscale"
+  ) "$(tailscale dns status | grep -A1 'Search domains' | tail -n 1 | awk '{print $2}')";
+
+  clusterAddr =
     if cfg.mode == "tailscale" then
-      "$(tailscale dns status | grep -A1 'Search domains' | tail -n 1 | awk '{print $2}')"
+      "${cfg.tailscaleApiServerSvc}.${tailscaleDnsCommand}:443"
     else
-      null;
+      "${cfg.apiServerHost}:${toString cfg.apiServerPort}";
+
+  etcdClusterAddr =
+    if cfg.mode == "tailscale" then
+      "${cfg.tailscaleEtcdSvc}.${tailscaleDnsCommand}:443"
+    else
+      "${cfg.apiServerHost}:${toString cfg.etcdPeerPort}";
 
   pathPackages =
     if cfg.mode == "tailscale" then
@@ -45,56 +63,94 @@ let
     done
   '';
 
-  kubeletManifest = ''
-    apiVersion: kubelet.config.k8s.io/v1beta1
-    authentication:
-      anonymous:
-        enabled: false
-      webhook:
-        cacheTTL: 0s
-        enabled: true
-      x509:
-        clientCAFile: /etc/kubernetes/pki/ca.crt
-    authorization:
-      mode: Webhook
-      webhook:
-        cacheAuthorizedTTL: 0s
-        cacheUnauthorizedTTL: 0s
-    cgroupDriver: systemd
-    clusterDNS:
-    - 10.96.0.10
-    clusterDomain: cluster.local
-    containerRuntimeEndpoint: unix:///var/run/crio/crio.sock
-    cpuManagerReconcilePeriod: 0s
-    crashLoopBackOff: {}
-    evictionPressureTransitionPeriod: 0s
-    fileCheckFrequency: 0s
-    healthzBindAddress: 127.0.0.1
-    healthzPort: 10248
-    httpCheckFrequency: 0s
-    imageMaximumGCAge: 0s
-    imageMinimumGCAge: 0s
-    kind: KubeletConfiguration
-    logging:
-      flushFrequency: 0
-      options:
-        json:
-          infoBufferSize: "0"
-        text:
-          infoBufferSize: "0"
-      verbosity: 0
-    memorySwap: {}
-    nodeStatusReportFrequency: 0s
-    nodeStatusUpdateFrequency: 0s
-    rotateCertificates: true
-    runtimeRequestTimeout: 0s
-    shutdownGracePeriod: 0s
-    shutdownGracePeriodCriticalPods: 0s
-    staticPodPath: /etc/kubernetes/manifests
-    streamingConnectionIdleTimeout: 0s
-    syncFrequency: 0s
-    volumeStatsAggPeriod: 0s
-  '';
+  readModuleFile = file: builtins.readFile "${inputs.self}/modules/hosts/kubernetes/${file}";
+  readManifest = manifest: readModuleFile "manifests/${manifest}";
+
+  kubeletManifest = readManifest "kubelet.yaml";
+
+  mkCertFunction = readModuleFile "scripts/mkCert.sh";
+
+  mkCert =
+    {
+      ca,
+      cert,
+      subject,
+      expirationDays,
+      altNames ? { },
+    }:
+    let
+      subjectString = lib.strings.concatStrings (
+        lib.attrsets.mapAttrsToList (k: v: "/${k}=${v}") subject
+      );
+      subjectArg = if subjectString == "" then "" else "-subj \"${subjectString}\"";
+
+      altNamesLine = builtins.concatStringsSep ", " (
+        lib.attrsets.mapAttrsToList (
+          kind: values:
+          builtins.concatStringsSep ", " (map (v: "${kind}:${v}") (lib.lists.filter (v: v != null) values))
+        ) altNames
+      );
+
+      altNamesExt = if altNamesLine == "" then "" else "subjectAltName = ${altNamesLine}";
+      altNamesExtArg = if altNamesExt == "" then "" else "-addext \"${altNamesExt}\"";
+      altNamesExtFileArg = if altNamesExt == "" then "" else "-extfile <(echo \"${altNamesExt}\")";
+    in
+    "mkCert \"${ca}\" \"${cert}\" \"${toString expirationDays}\" \"${subjectArg}\" \"${altNamesExtArg}\"";
+
+  mkKubeconfigFunction =
+    builtins.replaceStrings
+      [ "$NIX_MK_CERT_WITH_GROUP" "$NIX_MK_CERT" ]
+      [
+        (mkCert {
+          ca = "$ca";
+          cert = "$kubeconfig";
+          subject = {
+            CN = "$username";
+            O = "$group";
+          };
+          expirationDays = "$expirationDays";
+        })
+        (mkCert {
+          ca = "$ca";
+          cert = "$kubeconfig";
+          subject = {
+            CN = "$username";
+          };
+          expirationDays = "$expirationDays";
+        })
+      ]
+      (readModuleFile "scripts/mkKubeconfig.sh");
+
+  mkKubeconfig =
+    {
+      ca,
+      kubeconfig,
+      username,
+      group ? "",
+      expirationDays,
+      isLocal ? false,
+    }:
+    let
+      shadowedClusterAddr =
+        if isLocal then "$ipCommand:${toString cfg.apiServerPort}" else "$clusterAddr";
+    in
+    "mkKubeconfig \"${ca}\" \"${kubeconfig}\" \"${shadowedClusterAddr}\" \"${toString expirationDays}\" \"${username}\" \"${group}\"";
+
+  adminKubectl = "kubectl --kubeconfig=/etc/kubernetes/admin.conf";
+
+  addLabelOnNodeFunction = builtins.replaceStrings [ "$KUBECTL" ] [ adminKubectl ] (
+    readModuleFile "scripts/addLabelOnNode.sh"
+  );
+  removeLabelOnNodeFunction = builtins.replaceStrings [ "$KUBECTL" ] [ adminKubectl ] (
+    readModuleFile "scripts/removeLabelOnNode.sh"
+  );
+  addTaintOnNodeFunction = builtins.replaceStrings [ "$KUBECTL" ] [ adminKubectl ] (
+    readModuleFile "scripts/addTaintOnNode.sh"
+  );
+  removeTaintOnNodeFunction = builtins.replaceStrings [ "$KUBECTL" ] [ adminKubectl ] (
+    readModuleFile "scripts/removeTaintOnNode.sh"
+  );
+
 in
 {
   config = lib.mkMerge [
@@ -157,6 +213,7 @@ in
             pkgs.jq
             pkgs.curl
             pkgs.gawk
+            pkgs.kubernetes
           ]
           ++ pathPackages;
           description = "Initialize Kubernetes cluster";
@@ -167,164 +224,6 @@ in
 
           script =
             let
-              clusterAddr =
-                if cfg.mode == "tailscale" then
-                  "${cfg.tailscaleApiServerSvc}.${tailscaleDnsCommand}:443"
-                else
-                  "${cfg.apiServerHost}:${toString cfg.apiServerPort}";
-
-              mkCert =
-                {
-                  ca,
-                  cert,
-                  subject,
-                  expirationDays,
-                  altNames ? { },
-                }:
-                let
-                  subjectString = lib.strings.concatStrings (
-                    lib.attrsets.mapAttrsToList (k: v: "/${k}=${v}") subject
-                  );
-                  subjectArg = if subjectString == "" then "" else "-subj \"${subjectString}\"";
-
-                  altNamesLine = builtins.concatStringsSep ", " (
-                    lib.attrsets.mapAttrsToList (
-                      kind: values:
-                      builtins.concatStringsSep ", " (map (v: "${kind}:${v}") (lib.lists.filter (v: v != null) values))
-                    ) altNames
-                  );
-
-                  altNamesExt = if altNamesLine == "" then "" else "subjectAltName = ${altNamesLine}";
-                  altNamesExtArg = if altNamesExt == "" then "" else "-addext \"${altNamesExt}\"";
-                  altNamesExtFileArg = if altNamesExt == "" then "" else "-extfile <(echo \"${altNamesExt}\")";
-                in
-                ''
-                  if [ ! -f "${ca}.crt" ] || [ ! -f "${ca}.key" ]; then
-                    echo "Required ${ca} CA is missing, cannot create ${cert} certificate."
-                    exit 1
-                  fi
-
-                  if [ ! -f "${cert}.key" ]; then
-                    openssl genpkey -algorithm ED25519 -out "${cert}.key"
-                    chmod 600 "${cert}.key"
-                  fi
-
-                  if [ ! -f "${cert}.crt" ] || ! openssl x509 -checkend 86400 -noout -in "${cert}.crt"; then
-                    openssl req -new \
-                      -key "${cert}.key" \
-                      ${subjectArg} \
-                      ${altNamesExtArg} \
-                      -out "${cert}.csr"
-
-                    openssl x509 -req \
-                      -in "${cert}.csr" \
-                      -CA "${ca}.crt" \
-                      -CAkey "${ca}.key" \
-                      -out "${cert}.crt" \
-                      -days ${toString expirationDays} \
-                      ${altNamesExtFileArg} \
-                      -sha512
-                    
-                    chmod 644 "${cert}.crt"
-                    rm -f "${cert}.csr"
-                  fi
-                '';
-
-              mkKubeconfig =
-                {
-                  ca,
-                  kubeconfig,
-                  username,
-                  group ? "",
-                  expirationDays,
-                  isLocal ? false,
-                }:
-                let
-                  subject =
-                    if group == "" then
-                      { CN = username; }
-                    else
-                      {
-                        CN = username;
-                        O = group;
-                      };
-
-                  subjectString = lib.strings.concatStrings (
-                    lib.attrsets.mapAttrsToList (k: v: "/${k}=${v}") subject
-                  );
-                  subjectArg = if subjectString == "" then "" else "-subj \"${subjectString}\"";
-
-                  shadowedClusterAddr = if isLocal then "${ipCommand}:${toString cfg.apiServerPort}" else clusterAddr;
-                in
-                ''
-                  ${waitForNetwork}
-
-                  if [ ! -f "${ca}.crt" ] || [ ! -f "${ca}.key" ]; then
-                    echo "Required ${ca} CA is missing, cannot create ${kubeconfig} kubeconfig."
-                    exit 1
-                  fi
-
-                  # TODO: handle expiration of kubeconfig
-                  if [ ! -f ${kubeconfig} ]; then
-                    openssl genpkey -algorithm ED25519 -out "${kubeconfig}.key"
-
-                    openssl req -new \
-                      -key "${kubeconfig}.key" \
-                      ${subjectArg} \
-                      -out "${kubeconfig}.csr"
-
-                    openssl x509 -req \
-                      -in "${kubeconfig}.csr" \
-                      -CA "${ca}.crt" \
-                      -CAkey "${ca}.key" \
-                      -out "${kubeconfig}.crt" \
-                      -days ${toString expirationDays} \
-                      -sha512
-
-                    jq -ncr \
-                      --arg caData "$(base64 -w0 ${ca}.crt)" \
-                      --arg clientCertData "$(base64 -w0 ${kubeconfig}.crt)" \
-                      --arg clientKeyData "$(base64 -w0 ${kubeconfig}.key)" \
-                      --arg clusterAddr "${shadowedClusterAddr}" \
-                      '{
-                        apiVersion: "v1",
-                        kind: "Config",
-                        clusters: [
-                          {
-                            name: "kubernetes",
-                            cluster: {
-                              "certificate-authority-data": $caData,
-                              server: "https://" + $clusterAddr
-                            }
-                          }
-                        ],
-                        contexts: [
-                          {
-                            name: "${username}@kubernetes",
-                            context: {
-                              cluster: "kubernetes",
-                              user: "${username}"
-                            }
-                          }
-                        ],
-                        "current-context": "${username}@kubernetes",
-                        users: [
-                          {
-                            name: "${username}",
-                            user: {
-                              "client-certificate-data": $clientCertData,
-                              "client-key-data": $clientKeyData
-                            }
-                          }
-                        ]
-                      }' > "${kubeconfig}"
-
-                    rm -f "${kubeconfig}.key" "${kubeconfig}.csr" "${kubeconfig}.crt"
-
-                    chmod 600 "${kubeconfig}"
-                  fi
-                '';
-
               mkApiServerCert = mkCert {
                 ca = "/etc/kubernetes/pki/ca";
                 cert = "/etc/kubernetes/pki/apiserver";
@@ -334,17 +233,15 @@ in
                 altNames = {
                   IP = [
                     "10.96.0.1"
-                    ipCommand
+                    "$ipCommand"
                   ];
                   DNS = [
                     "kubernetes"
                     "kubernetes.default"
                     "kubernetes.default.svc"
                     "kubernetes.default.svc.cluster.local"
-                    (
-                      if tailscaleDnsCommand != null then "${cfg.tailscaleApiServerSvc}.${tailscaleDnsCommand}" else null
-                    )
-                    (if cfg.mode == "tailscale" then cfg.tailscaleApiServerSvc else null)
+                    (thenOrNull (tailscaleDnsCommand != null) "$clusterAddr")
+                    (thenOrNull (cfg.mode == "tailscale") cfg.tailscaleApiServerSvc)
                     config.networking.hostName
                   ];
                 };
@@ -378,13 +275,13 @@ in
                 };
                 altNames = {
                   IP = [
-                    ipCommand
+                    "$ipCommand"
                     "127.0.0.1"
                     "::1"
                   ];
                   DNS = [
-                    (if tailscaleDnsCommand != null then "${cfg.tailscaleEtcdSvc}.${tailscaleDnsCommand}" else null)
-                    (if cfg.mode == "tailscale" then cfg.tailscaleEtcdSvc else null)
+                    (thenOrNull (tailscaleDnsCommand != null) "$etcdClusterAddr")
+                    (thenOrNull (cfg.mode == "tailscale") cfg.tailscaleEtcdSvc)
                     config.networking.hostName
                     "localhost"
                   ];
@@ -400,13 +297,13 @@ in
                 };
                 altNames = {
                   IP = [
-                    ipCommand
+                    "$ipCommand"
                     "127.0.0.1"
                     "::1"
                   ];
                   DNS = [
-                    (if tailscaleDnsCommand != null then "${cfg.tailscaleEtcdSvc}.${tailscaleDnsCommand}" else null)
-                    (if cfg.mode == "tailscale" then cfg.tailscaleEtcdSvc else null)
+                    (thenOrNull (tailscaleDnsCommand != null) "$etcdClusterAddr")
+                    (thenOrNull (cfg.mode == "tailscale") cfg.tailscaleEtcdSvc)
                     config.networking.hostName
                     "localhost"
                   ];
@@ -479,7 +376,7 @@ in
                 kind: Pod
                 metadata:
                   annotations:
-                    kubeadm.kubernetes.io/etcd.advertise-client-urls: https://${ipCommand}:${toString cfg.etcdClientPort}
+                    kubeadm.kubernetes.io/etcd.advertise-client-urls: https://$ipCommand:${toString cfg.etcdClientPort}
                   labels:
                     component: etcd
                     tier: control-plane
@@ -491,12 +388,12 @@ in
                     - etcd
                     - --name=${config.networking.hostName}
                     - --data-dir=/var/lib/etcd
-                    - --advertise-client-urls=https://${ipCommand}:${toString cfg.etcdClientPort}
-                    - --listen-client-urls=https://127.0.0.1:${toString cfg.etcdClientPort},https://${ipCommand}:${toString cfg.etcdClientPort}
-                    - --initial-advertise-peer-urls=https://${ipCommand}:${toString cfg.etcdPeerPort}
-                    - --initial-cluster=${config.networking.hostName}=https://${ipCommand}:${toString cfg.etcdPeerPort}
+                    - --advertise-client-urls=https://$ipCommand:${toString cfg.etcdClientPort}
+                    - --listen-client-urls=https://127.0.0.1:${toString cfg.etcdClientPort},https://$ipCommand:${toString cfg.etcdClientPort}
+                    - --initial-advertise-peer-urls=https://$ipCommand:${toString cfg.etcdPeerPort}
+                    - --initial-cluster=${config.networking.hostName}=https://$ipCommand:${toString cfg.etcdPeerPort}
                     - --listen-metrics-urls=http://127.0.0.1:2381
-                    - --listen-peer-urls=https://${ipCommand}:${toString cfg.etcdPeerPort}
+                    - --listen-peer-urls=https://$ipCommand:${toString cfg.etcdPeerPort}
                     - --client-cert-auth=true
                     - --peer-client-cert-auth=true
                     - --feature-gates=InitialCorruptCheck=true
@@ -576,7 +473,7 @@ in
                 kind: Pod
                 metadata:
                   annotations:
-                    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: ${ipCommand}:${toString cfg.apiServerPort}
+                    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: $ipCommand:${toString cfg.apiServerPort}
                   labels:
                     component: kube-apiserver
                     tier: control-plane
@@ -586,7 +483,7 @@ in
                   containers:
                   - command:
                     - kube-apiserver
-                    - --advertise-address=${ipCommand}
+                    - --advertise-address=$ipCommand
                     - --allow-privileged=true
                     - --authorization-mode=Node,RBAC
                     - --client-ca-file=/etc/kubernetes/pki/ca.crt
@@ -595,7 +492,7 @@ in
                     - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
                     - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
                     - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
-                    - --etcd-servers=https://${ipCommand}:${toString cfg.etcdClientPort}
+                    - --etcd-servers=https://$ipCommand:${toString cfg.etcdClientPort}
                     - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
                     - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
                     - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
@@ -618,7 +515,7 @@ in
                     livenessProbe:
                       failureThreshold: 8
                       httpGet:
-                        host: ${ipCommand}
+                        host: $ipCommand
                         path: /livez
                         port: probe-port
                         scheme: HTTPS
@@ -633,7 +530,7 @@ in
                     readinessProbe:
                       failureThreshold: 3
                       httpGet:
-                        host: ${ipCommand}
+                        host: $ipCommand
                         path: /readyz
                         port: probe-port
                         scheme: HTTPS
@@ -645,7 +542,7 @@ in
                     startupProbe:
                       failureThreshold: 24
                       httpGet:
-                        host: ${ipCommand}
+                        host: $ipCommand
                         path: /livez
                         port: probe-port
                         scheme: HTTPS
@@ -1015,9 +912,9 @@ in
                 );
 
               taintToAdd =
-                if cfg.kind == [ "control-plane" ] then "node-role.kubernetes.io/control-plane" else "";
+                if cfg.kind == [ "control-plane" ] then [ "node-role.kubernetes.io/control-plane" ] else [ ];
               taintToRemove =
-                if cfg.kind != [ "control-plane" ] then "node-role.kubernetes.io/control-plane" else "";
+                if cfg.kind != [ "control-plane" ] then [ "node-role.kubernetes.io/control-plane" ] else [ ];
 
               coreDnsConfigMap = builtins.toJSON ({
                 apiVersion = "v1";
@@ -1375,7 +1272,7 @@ in
                 clusters:
                 - cluster:
                     certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-                    server: https://${clusterAddr}
+                    server: https://$clusterAddr
                   name: default
                 contexts:
                 - context:
@@ -1390,240 +1287,265 @@ in
                     tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
               '';
 
-              kubeProxyConfigMap = lib.escape ["\"" "$"] (builtins.toJSON ({
-                apiVersion = "v1";
-                kind = "ConfigMap";
-                metadata = {
-                  name = "kube-proxy";
-                  namespace = "kube-system";
-                  annotations = {
-                    "kubeadm.kubernetes.io/component-config.hash" = "sha256:${
-                      builtins.hashString "sha256" (kubeProxyConfig + kubeProxyKubeconfig)
-                    }";
-                  };
-                  labels = {
-                    app = "kube-proxy";
-                  };
-                };
-                data = {
-                  "config.conf" = kubeProxyConfig;
-                  "kubeconfig.conf" = kubeProxyKubeconfig;
-                };
-              }));
-
-              kubeProxyDaemonSet = lib.escape ["\"" "$"] (builtins.toJSON ({
-                apiVersion = "apps/v1";
-                kind = "DaemonSet";
-                metadata = {
-                  labels = {
-                    "k8s-app" = "kube-proxy";
-                  };
-                  name = "kube-proxy";
-                  namespace = "kube-system";
-                };
-                spec = {
-                  selector = {
-                    matchLabels = {
-                      "k8s-app" = "kube-proxy";
+              kubeProxyConfigMap = (
+                builtins.toJSON ({
+                  apiVersion = "v1";
+                  kind = "ConfigMap";
+                  metadata = {
+                    name = "kube-proxy";
+                    namespace = "kube-system";
+                    annotations = {
+                      "kubeadm.kubernetes.io/component-config.hash" = "sha256:${
+                        builtins.hashString "sha256" (kubeProxyConfig + kubeProxyKubeconfig)
+                      }";
+                    };
+                    labels = {
+                      app = "kube-proxy";
                     };
                   };
-                  template = {
-                    metadata = {
-                      labels = {
+                  data = {
+                    "config.conf" = kubeProxyConfig;
+                    "kubeconfig.conf" = kubeProxyKubeconfig;
+                  };
+                })
+              );
+
+              kubeProxyDaemonSet = lib.escape [ "$(" ] (
+                builtins.toJSON ({
+                  apiVersion = "apps/v1";
+                  kind = "DaemonSet";
+                  metadata = {
+                    labels = {
+                      "k8s-app" = "kube-proxy";
+                    };
+                    name = "kube-proxy";
+                    namespace = "kube-system";
+                  };
+                  spec = {
+                    selector = {
+                      matchLabels = {
                         "k8s-app" = "kube-proxy";
                       };
                     };
-                    spec = {
-                      containers = [
-                        {
-                          command = [
-                            "/usr/local/bin/kube-proxy"
-                            "--config=/var/lib/kube-proxy/config.conf"
-                            "--hostname-override=\\$(NODE_NAME)"
-                          ];
-                          env = [
-                            {
-                              name = "NODE_NAME";
-                              valueFrom = {
-                                fieldRef = {
-                                  fieldPath = "spec.nodeName";
-                                };
-                              };
-                            }
-                          ];
-                          image = "registry.k8s.io/kube-proxy:v1.34.3";
-                          imagePullPolicy = "IfNotPresent";
-                          name = "kube-proxy";
-                          resources = { };
-                          securityContext = {
-                            privileged = true;
-                          };
-                          volumeMounts = [
-                            {
-                              mountPath = "/var/lib/kube-proxy";
-                              name = "kube-proxy";
-                            }
-                            {
-                              mountPath = "/run/xtables.lock";
-                              name = "xtables-lock";
-                            }
-                            {
-                              mountPath = "/lib/modules";
-                              name = "lib-modules";
-                              readOnly = true;
-                            }
-                          ];
-                        }
-                      ];
-                      hostNetwork = true;
-                      nodeSelector = {
-                        "kubernetes.io/os" = "linux";
+                    template = {
+                      metadata = {
+                        labels = {
+                          "k8s-app" = "kube-proxy";
+                        };
                       };
-                      priorityClassName = "system-node-critical";
-                      serviceAccountName = "kube-proxy";
-                      tolerations = [
-                        {
-                          operator = "Exists";
-                        }
-                      ];
-                      volumes = [
-                        {
-                          configMap = {
+                      spec = {
+                        containers = [
+                          {
+                            command = [
+                              "/usr/local/bin/kube-proxy"
+                              "--config=/var/lib/kube-proxy/config.conf"
+                              "--hostname-override=$(NODE_NAME)"
+                            ];
+                            env = [
+                              {
+                                name = "NODE_NAME";
+                                valueFrom = {
+                                  fieldRef = {
+                                    fieldPath = "spec.nodeName";
+                                  };
+                                };
+                              }
+                            ];
+                            image = "registry.k8s.io/kube-proxy:v1.34.3";
+                            imagePullPolicy = "IfNotPresent";
                             name = "kube-proxy";
-                          };
-                          name = "kube-proxy";
-                        }
-                        {
-                          hostPath = {
-                            path = "/run/xtables.lock";
-                            type = "FileOrCreate";
-                          };
-                          name = "xtables-lock";
-                        }
-                        {
-                          hostPath = {
-                            path = "/lib/modules";
-                          };
-                          name = "lib-modules";
-                        }
-                      ];
+                            resources = { };
+                            securityContext = {
+                              privileged = true;
+                            };
+                            volumeMounts = [
+                              {
+                                mountPath = "/var/lib/kube-proxy";
+                                name = "kube-proxy";
+                              }
+                              {
+                                mountPath = "/run/xtables.lock";
+                                name = "xtables-lock";
+                              }
+                              {
+                                mountPath = "/lib/modules";
+                                name = "lib-modules";
+                                readOnly = true;
+                              }
+                            ];
+                          }
+                        ];
+                        hostNetwork = true;
+                        nodeSelector = {
+                          "kubernetes.io/os" = "linux";
+                        };
+                        priorityClassName = "system-node-critical";
+                        serviceAccountName = "kube-proxy";
+                        tolerations = [
+                          {
+                            operator = "Exists";
+                          }
+                        ];
+                        volumes = [
+                          {
+                            configMap = {
+                              name = "kube-proxy";
+                            };
+                            name = "kube-proxy";
+                          }
+                          {
+                            hostPath = {
+                              path = "/run/xtables.lock";
+                              type = "FileOrCreate";
+                            };
+                            name = "xtables-lock";
+                          }
+                          {
+                            hostPath = {
+                              path = "/lib/modules";
+                            };
+                            name = "lib-modules";
+                          }
+                        ];
+                      };
+                    };
+                    updateStrategy = {
+                      type = "RollingUpdate";
                     };
                   };
-                  updateStrategy = {
-                    type = "RollingUpdate";
+                  status = {
+                    currentNumberScheduled = 0;
+                    desiredNumberScheduled = 0;
+                    numberMisscheduled = 0;
+                    numberReady = 0;
                   };
-                };
-                status = {
-                  currentNumberScheduled = 0;
-                  desiredNumberScheduled = 0;
-                  numberMisscheduled = 0;
-                  numberReady = 0;
-                };
-              }));
+                })
+              );
 
-              kubeProxyServiceAccount = lib.escape ["\"" "$"] (builtins.toJSON ({
-                apiVersion = "v1";
-                kind = "ServiceAccount";
-                metadata = {
-                  name = "kube-proxy";
-                  namespace = "kube-system";
-                };
-              }));
-
-              kubeProxyRoleBinding = lib.escape ["\"" "$"] (builtins.toJSON ({
-                apiVersion = "rbac.authorization.k8s.io/v1";
-                kind = "ClusterRoleBinding";
-                metadata = {
-                  name = "kube-proxy";
-                };
-                roleRef = {
-                  apiGroup = "rbac.authorization.k8s.io";
-                  kind = "ClusterRole";
-                  name = "system:node-proxier";
-                };
-                subjects = [
-                  {
-                    kind = "ServiceAccount";
+              kubeProxyServiceAccount = lib.escape [ "$" ] (
+                builtins.toJSON ({
+                  apiVersion = "v1";
+                  kind = "ServiceAccount";
+                  metadata = {
                     name = "kube-proxy";
                     namespace = "kube-system";
-                  }
-                ];
-              }));
+                  };
+                })
+              );
 
-              kubeProxyRole = lib.escape ["\"" "$"] (builtins.toJSON ({
-                apiVersion = "rbac.authorization.k8s.io/v1";
-                kind = "Role";
-                metadata = {
-                  name = "kube-proxy";
-                };
-                rules = [
-                  {
-                    apiGroups = [ "" ];
-                    resourceNames = [ "kube-proxy" ];
-                    resources = [ "configmaps" ];
-                    verbs = [ "get" ];
-                  }
-                ];
-              }));
+              kubeProxyRoleBinding = lib.escape [ "$" ] (
+                builtins.toJSON ({
+                  apiVersion = "rbac.authorization.k8s.io/v1";
+                  kind = "ClusterRoleBinding";
+                  metadata = {
+                    name = "kube-proxy";
+                  };
+                  roleRef = {
+                    apiGroup = "rbac.authorization.k8s.io";
+                    kind = "ClusterRole";
+                    name = "system:node-proxier";
+                  };
+                  subjects = [
+                    {
+                      kind = "ServiceAccount";
+                      name = "kube-proxy";
+                      namespace = "kube-system";
+                    }
+                  ];
+                })
+              );
 
-              kubeProxyRoleBindingNode = lib.escape ["\"" "$"] (builtins.toJSON ({
-                apiVersion = "rbac.authorization.k8s.io/v1";
-                kind = "RoleBinding";
-                metadata = {
-                  name = "kube-proxy";
-                  namespace = "kube-system";
-                };
-                roleRef = {
-                  apiGroup = "rbac.authorization.k8s.io";
+              kubeProxyRole = lib.escape [ "$" ] (
+                builtins.toJSON ({
+                  apiVersion = "rbac.authorization.k8s.io/v1";
                   kind = "Role";
-                  name = "kube-proxy";
-                };
-                subjects = [
-                  {
-                    kind = "Group";
-                    name = "system:nodes";
-                  }
-                  {
-                    kind = "Group";
-                    name = "system:bootstrappers:kubeadm:default-node-token";
-                  }
-                ];
-              }));
+                  metadata = {
+                    name = "kube-proxy";
+                  };
+                  rules = [
+                    {
+                      apiGroups = [ "" ];
+                      resourceNames = [ "kube-proxy" ];
+                      resources = [ "configmaps" ];
+                      verbs = [ "get" ];
+                    }
+                  ];
+                })
+              );
+
+              kubeProxyRoleBindingNode = lib.escape [ "$" ] (
+                builtins.toJSON ({
+                  apiVersion = "rbac.authorization.k8s.io/v1";
+                  kind = "RoleBinding";
+                  metadata = {
+                    name = "kube-proxy";
+                    namespace = "kube-system";
+                  };
+                  roleRef = {
+                    apiGroup = "rbac.authorization.k8s.io";
+                    kind = "Role";
+                    name = "kube-proxy";
+                  };
+                  subjects = [
+                    {
+                      kind = "Group";
+                      name = "system:nodes";
+                    }
+                    {
+                      kind = "Group";
+                      name = "system:bootstrappers:kubeadm:default-node-token";
+                    }
+                  ];
+                })
+              );
             in
             ''
+              ${mkCertFunction}
+              ${mkKubeconfigFunction}
+              ${addLabelOnNodeFunction}
+              ${removeLabelOnNodeFunction}
+              ${addTaintOnNodeFunction}
+              ${removeTaintOnNodeFunction}
+
               ${waitForNetwork}
 
-              if curl --silent --fail --insecure "https://${clusterAddr}/livez" --max-time 10 >/dev/null; then
+              clusterAddr="${clusterAddr}"
+              ipAddr="${ipCommand}"
+              etcdClusterAddr="${etcdClusterAddr}"
+
+              if curl --silent --fail --insecure "https://$clusterAddr/livez" --max-time 10 >/dev/null; then
                 echo "Kubernetes API server is already running, skipping initialization of cluster."
 
                 ${mkKubeletKubeconfig { }}
                 ${mkSuperAdminKubeconfig { }}
 
-                ${pkgs.kubernetes}/bin/kubelet --config=/etc/kubernetes/kubelet/config.yaml --kubeconfig=/etc/kubernetes/kubelet.conf &
+                kubelet --config=/etc/kubernetes/kubelet/config.yaml --kubeconfig=/etc/kubernetes/kubelet.conf &
                 kubeletPid=$!
 
                 sleep 5
 
-                ${pkgs.kubernetes}/bin/kubectl get node ${config.networking.hostName} --kubeconfig=/etc/kubernetes/admin.conf -o json |
-                  jq '.metadata.labels |= with_entries(select(${
-                    lib.concatMapStringsSep " or " (k: ".key == \"" + k + "\"") labelKeysToRemove
-                  } | not))' |
-                  jq '.metadata.labels += {
-                    ${lib.concatMapStringsSep ", " (k: "\"" + k + "\": \"\"") labelKeysToAdd}
-                  }' |
-                  jq '.specs.taints |= map(select(.key != "'${taintToRemove}'"))' |
-                  jq --arg taintToAdd '${taintToAdd}' '
-                    if $taintToAdd != "" then
-                      . + [{
-                        key: $taintToAdd,
-                        effect: "NoSchedule"
-                      }]
-                    else
-                      .
-                    end
-                  ' | ${pkgs.kubernetes}/bin/kubectl apply --kubeconfig=/etc/kubernetes/admin.conf -f -
+                ${indent 2 (
+                  lib.strings.concatMapStringsSep "\n" (
+                    label: "removeLabelOnNode \"${config.networking.hostName}\" \"${label}\""
+                  ) labelKeysToRemove
+                )}
+                ${indent 2 (
+                  lib.strings.concatMapStringsSep "\n" (
+                    label: "addLabelOnNode \"${config.networking.hostName}\" \"${label}\""
+                  ) labelKeysToAdd
+                )}
+                ${indent 2 (
+                  lib.strings.concatMapStringsSep "\n" (
+                    taint: "addTaintOnNode \"${config.networking.hostName}\" \"${taint}\""
+                  ) taintToAdd
+                )}
+                ${indent 2 (
+                  lib.strings.concatMapStringsSep "\n" (
+                    taint: "removeTaintOnNode \"${config.networking.hostName}\" \"${taint}\""
+                  ) taintToRemove
+                )}
 
-                  kill -2 $kubeletPid
+                kill -2 $kubeletPid
               else
                 echo "Initializing Kubernetes cluster..."
 
@@ -1642,31 +1564,31 @@ in
 
                 mkdir -p /etc/kubernetes/manifests
 
-              cat > /etc/kubernetes/manifests/etcd.yaml <<-EOF
-              ${etcdManifest}
-              EOF
+                cat > /etc/kubernetes/manifests/etcd.yaml <<-EOF
+                  ${indent 4 etcdManifest}
+                EOF
 
                 chmod 644 /etc/kubernetes/manifests/etcd.yaml
 
-              cat > /etc/kubernetes/manifests/kube-apiserver.yaml <<-EOF
-              ${apiServerManifest}
-              EOF
+                cat > /etc/kubernetes/manifests/kube-apiserver.yaml <<-EOF
+                  ${indent 4 apiServerManifest}
+                EOF
 
                 chmod 644 /etc/kubernetes/manifests/kube-apiserver.yaml
 
-              cat > /etc/kubernetes/manifests/kube-controller-manager.yaml <<-EOF
-              ${controllerManagerManifest}
-              EOF
+                cat > /etc/kubernetes/manifests/kube-controller-manager.yaml <<-EOF
+                  ${indent 4 controllerManagerManifest}
+                EOF
 
                 chmod 644 /etc/kubernetes/manifests/kube-controller-manager.yaml
 
-              cat > /etc/kubernetes/manifests/kube-scheduler.yaml <<-EOF
-              ${schedulerManifest}
-              EOF
+                cat > /etc/kubernetes/manifests/kube-scheduler.yaml <<-EOF
+                  ${indent 4 schedulerManifest}
+                EOF
 
                 chmod 644 /etc/kubernetes/manifests/kube-scheduler.yaml
 
-                ${pkgs.kubernetes}/bin/kubelet --config=/etc/kubernetes/kubelet/config.yaml --kubeconfig=/etc/kubernetes/kubelet.conf &
+                kubelet --config=/etc/kubernetes/kubelet/config.yaml --kubeconfig=/etc/kubernetes/kubelet.conf &
 
                 kubeletPid=$!
 
@@ -1674,44 +1596,96 @@ in
 
                 sleep 5
 
-                echo -e '${kubeadmConfigMap}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e '${kubeadmConfigRules}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e '${kubeadmRoleBinding}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e '${kubeletConfigMap}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e '${kubeletConfigRules}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e '${kubletConfigRoleBinding}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 kubeadmConfigMap}
+                EOF
 
-                ${pkgs.kubernetes}/bin/kubectl get node ${config.networking.hostName} --kubeconfig=/etc/kubernetes/admin.conf -o json |
-                  jq '.metadata.labels |= with_entries(select(${
-                    lib.concatMapStringsSep " or " (k: ".key == \"" + k + "\"") labelKeysToRemove
-                  } | not))' |
-                  jq '.metadata.labels += {
-                    ${lib.concatMapStringsSep ", " (k: "\"" + k + "\": \"\"") labelKeysToAdd}
-                  }' |
-                  jq '.specs.taints |= map(select(.key != "'${taintToRemove}'"))' |
-                  jq --arg taintToAdd '${taintToAdd}' '
-                    if $taintToAdd != "" then
-                      . + [{
-                        key: $taintToAdd,
-                        effect: "NoSchedule"
-                      }]
-                    else
-                      .
-                    end
-                  ' | ${pkgs.kubernetes}/bin/kubectl apply --kubeconfig=/etc/kubernetes/admin.conf -f -
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 kubeadmConfigRules}
+                EOF
 
-                echo -e '${coreDnsConfigMap}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e '${coreDnsRoleBinding}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e '${coreDnsServiceAccount}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e '${coreDnsDeployment}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e '${coreDnsService}' | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 kubeadmRoleBinding}
+                EOF
 
-                echo -e "${kubeProxyConfigMap}" | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e "${kubeProxyDaemonSet}" | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e "${kubeProxyServiceAccount}" | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e "${kubeProxyRoleBinding}" | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e "${kubeProxyRole}" | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
-                echo -e "${kubeProxyRoleBindingNode}" | ${pkgs.kubernetes}/bin/kubectl create --kubeconfig=/etc/kubernetes/admin.conf -f -
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 kubeletConfigMap}
+                EOF
+
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 kubeletConfigRules}
+                EOF
+
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 kubletConfigRoleBinding}
+                EOF
+
+                ${indent 2 (
+                  lib.strings.concatMapStringsSep "\n" (
+                    label: "removeLabelOnNode \"${config.networking.hostName}\" \"${label}\""
+                  ) labelKeysToRemove
+                )}
+                ${indent 2 (
+                  lib.strings.concatMapStringsSep "\n" (
+                    label: "addLabelOnNode \"${config.networking.hostName}\" \"${label}\""
+                  ) labelKeysToAdd
+                )}
+                ${indent 2 (
+                  lib.strings.concatMapStringsSep "\n" (
+                    taint: "addTaintOnNode \"${config.networking.hostName}\" \"${taint}\""
+                  ) taintToAdd
+                )}
+                ${indent 2 (
+                  lib.strings.concatMapStringsSep "\n" (
+                    taint: "removeTaintOnNode \"${config.networking.hostName}\" \"${taint}\""
+                  ) taintToRemove
+                )}
+
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 coreDnsConfigMap}
+                EOF
+
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 coreDnsRoleBinding}
+                EOF
+
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 coreDnsServiceAccount}
+                EOF
+
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 coreDnsDeployment}
+                EOF
+
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 coreDnsService}
+                EOF
+
+
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 kubeProxyConfigMap}
+                EOF
+
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 kubeProxyDaemonSet}
+                EOF
+
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 kubeProxyServiceAccount}
+                EOF
+
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 kubeProxyRoleBinding}
+                EOF
+
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 kubeProxyRole}
+                EOF
+
+                ${adminKubectl} create -f - <<-EOF
+                  ${indent 4 kubeProxyRoleBindingNode}
+                EOF
+
 
                 kill -2 $kubeletPid
 
@@ -1729,10 +1703,13 @@ in
           ];
           requires = [ "crio.service" ];
           wantedBy = [ "multi-user.target" ];
+          path = [
+            pkgs.kubernetes
+          ];
 
           serviceConfig = {
             ExecStart = ''
-              ${pkgs.kubernetes}/bin/kubelet \
+              kubelet \
                 --config=/etc/kubernetes/kubelet/config.yaml \
                 --kubeconfig=/etc/kubernetes/kubelet.conf \
                 --v=2

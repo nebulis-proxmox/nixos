@@ -158,7 +158,7 @@ let
     }:
     let
       shadowedClusterAddr =
-        if isLocal then "$ipCommand:${toString cfg.apiServerPort}" else "$clusterAddr";
+        if isLocal then "$ipAddr:${toString cfg.apiServerPort}" else "$clusterAddr";
     in
     "mkKubeconfig \"${ca}\" \"${kubeconfig}\" \"${shadowedClusterAddr}\" \"${toString expirationDays}\" \"${username}\" \"${group}\"";
 
@@ -259,7 +259,7 @@ in
                 altNames = {
                   IP = [
                     "10.96.0.1"
-                    "$ipCommand"
+                    "$ipAddr"
                   ];
                   DNS = [
                     "kubernetes"
@@ -301,7 +301,7 @@ in
                 };
                 altNames = {
                   IP = [
-                    "$ipCommand"
+                    "$ipAddr"
                     "127.0.0.1"
                     "::1"
                   ];
@@ -323,7 +323,7 @@ in
                 };
                 altNames = {
                   IP = [
-                    "$ipCommand"
+                    "$ipAddr"
                     "127.0.0.1"
                     "::1"
                   ];
@@ -402,7 +402,7 @@ in
                 kind: Pod
                 metadata:
                   annotations:
-                    kubeadm.kubernetes.io/etcd.advertise-client-urls: https://$ipCommand:${toString cfg.etcdClientPort}
+                    kubeadm.kubernetes.io/etcd.advertise-client-urls: https://$ipAddr:${toString cfg.etcdClientPort}
                   labels:
                     component: etcd
                     tier: control-plane
@@ -414,12 +414,12 @@ in
                     - etcd
                     - --name=${config.networking.hostName}
                     - --data-dir=/var/lib/etcd
-                    - --advertise-client-urls=https://$ipCommand:${toString cfg.etcdClientPort}
-                    - --listen-client-urls=https://127.0.0.1:${toString cfg.etcdClientPort},https://$ipCommand:${toString cfg.etcdClientPort}
-                    - --initial-advertise-peer-urls=https://$ipCommand:${toString cfg.etcdPeerPort}
-                    - --initial-cluster=${config.networking.hostName}=https://$ipCommand:${toString cfg.etcdPeerPort}
+                    - --advertise-client-urls=https://$ipAddr:${toString cfg.etcdClientPort}
+                    - --listen-client-urls=https://127.0.0.1:${toString cfg.etcdClientPort},https://$ipAddr:${toString cfg.etcdClientPort}
+                    - --initial-advertise-peer-urls=https://$ipAddr:${toString cfg.etcdPeerPort}
+                    - --initial-cluster=${config.networking.hostName}=https://$ipAddr:${toString cfg.etcdPeerPort}
                     - --listen-metrics-urls=http://127.0.0.1:2381
-                    - --listen-peer-urls=https://$ipCommand:${toString cfg.etcdPeerPort}
+                    - --listen-peer-urls=https://$ipAddr:${toString cfg.etcdPeerPort}
                     - --client-cert-auth=true
                     - --peer-client-cert-auth=true
                     - --feature-gates=InitialCorruptCheck=true
@@ -499,7 +499,7 @@ in
                 kind: Pod
                 metadata:
                   annotations:
-                    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: $ipCommand:${toString cfg.apiServerPort}
+                    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: $ipAddr:${toString cfg.apiServerPort}
                   labels:
                     component: kube-apiserver
                     tier: control-plane
@@ -509,7 +509,7 @@ in
                   containers:
                   - command:
                     - kube-apiserver
-                    - --advertise-address=$ipCommand
+                    - --advertise-address=$ipAddr
                     - --allow-privileged=true
                     - --authorization-mode=Node,RBAC
                     - --client-ca-file=/etc/kubernetes/pki/ca.crt
@@ -518,7 +518,7 @@ in
                     - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
                     - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
                     - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
-                    - --etcd-servers=https://$ipCommand:${toString cfg.etcdClientPort}
+                    - --etcd-servers=https://$ipAddr:${toString cfg.etcdClientPort}
                     - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
                     - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
                     - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
@@ -541,7 +541,7 @@ in
                     livenessProbe:
                       failureThreshold: 8
                       httpGet:
-                        host: $ipCommand
+                        host: $ipAddr
                         path: /livez
                         port: probe-port
                         scheme: HTTPS
@@ -556,7 +556,7 @@ in
                     readinessProbe:
                       failureThreshold: 3
                       httpGet:
-                        host: $ipCommand
+                        host: $ipAddr
                         path: /readyz
                         port: probe-port
                         scheme: HTTPS
@@ -568,7 +568,7 @@ in
                     startupProbe:
                       failureThreshold: 24
                       httpGet:
-                        host: $ipCommand
+                        host: $ipAddr
                         path: /livez
                         port: probe-port
                         scheme: HTTPS

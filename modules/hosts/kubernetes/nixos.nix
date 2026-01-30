@@ -1699,7 +1699,7 @@ in
         };
       };
     })
-    (lib.mkIf (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind) {
+    (lib.mkIf (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)) {
       nebulis.tailscale = {
         tags = [
           "kubernetes-control-plane"

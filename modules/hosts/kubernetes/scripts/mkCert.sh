@@ -15,31 +15,37 @@ mkCert () {
         chmod 600 "$cert.key"
     fi
 
-    if [ ! -z "$subject" ]; then
-        local subjectArg="-subj '$subject'"
-    fi
-
-    if [ ! -z "$altNamesExt" ]; then
-        local altNamesExtArg="-addext \"$altNamesExt\""
-        local altNamesExtFileArg="-extfile <(echo \"$altNamesExt\")"
-    fi
-
     if [ ! -f "$cert.crt" ] || ! openssl x509 -checkend 86400 -noout -in "$cert.crt"; then
-        openssl req -new \
-            -key "$cert.key" \
-            $subjectArg \
-            $altNamesExtArg \
-            -out "$cert.csr"
+        if [ -z "$altNamesExt" ]; then
+            openssl req -new \
+                -key "$cert.key" \
+                -subj "$subject" \
+                -out "$cert.csr"
 
-        openssl x509 -req \
-            -in "$cert.csr" \
-            -CA "$ca.crt" \
-            -CAkey "$ca.key" \
-            -out "$cert.crt" \
-            -days "$expirationDays" \
-            $altNamesExtFileArg \
-            -sha512
-        
+            openssl x509 -req \
+                -in "$cert.csr" \
+                -CA "$ca.crt" \
+                -CAkey "$ca.key" \
+                -out "$cert.crt" \
+                -days "$expirationDays" \
+                -sha512
+        else
+            openssl req -new \
+                -key "$cert.key" \
+                -subj "$subject" \
+                -addext "$altNamesExt" \
+                -out "$cert.csr"
+
+            openssl x509 -req \
+                -in "$cert.csr" \
+                -CA "$ca.crt" \
+                -CAkey "$ca.key" \
+                -out "$cert.crt" \
+                -days "$expirationDays" \
+                -extfile <(echo "$altNamesExt") \
+                -sha512
+        fi
+
         chmod 644 "$cert.crt"
         rm -f "$cert.csr"
     fi

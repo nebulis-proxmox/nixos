@@ -6,13 +6,13 @@ mkKubeconfig () {
     local username="$5"
     local group="$6"
 
-    if [ ! -f "$ca.crt" ] || [ ! -f "$ca.key" ]; then
+    if [ ! -f "${ca}.crt" ] || [ ! -f "${ca}.key" ]; then
         echo "Required $ca CA is missing, cannot create $kubeconfig kubeconfig."
         exit 1
     fi
 
     # TODO: handle expiration of kubeconfig
-    if [ ! -f $kubeconfig ]; then
+    if [ ! -f "$kubeconfig" ]; then
         if [ -z "$group" ]; then
             $NIX_MK_CERT
         else
@@ -20,9 +20,9 @@ mkKubeconfig () {
         fi
 
         jq -ncr \
-        --arg caData "$(base64 -w0 $ca.crt)" \
-        --arg clientCertData "$(base64 -w0 \"$kubeconfig.crt\")" \
-        --arg clientKeyData "$(base64 -w0 \"$kubeconfig.key\")" \
+        --arg caData "$(base64 -w0 \"${ca}.crt\")" \
+        --arg clientCertData "$(base64 -w0 \"${kubeconfig}.crt\")" \
+        --arg clientKeyData "$(base64 -w0 \"${kubeconfig}.key\")" \
         --arg clusterAddr "$clusterAddr" \
         --arg username "$username" \
         '{
@@ -58,7 +58,7 @@ mkKubeconfig () {
             ]
         }' > "$kubeconfig"
 
-        rm -f "$kubeconfig.key" "$kubeconfig.csr" "$kubeconfig.crt"
+        rm -f "${kubeconfig}.key" "${kubeconfig}.csr" "${kubeconfig}.crt"
 
         chmod 600 "$kubeconfig"
     fi

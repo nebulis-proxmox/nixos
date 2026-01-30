@@ -1738,7 +1738,7 @@ in
 
           serviceConfig = {
             ExecStart = ''
-              ${pkgs.kubernets}/bin/kubelet \
+              ${pkgs.kubernetes}/bin/kubelet \
                 --config=/etc/kubernetes/kubelet/config.yaml \
                 --kubeconfig=/etc/kubernetes/kubelet.conf \
                 --v=2

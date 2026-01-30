@@ -24,7 +24,7 @@ let
       newPrefix + (lib.strings.removePrefix oldPrefix str)
     else
       str;
-  
+
   prefixCount =
     prefix: str:
     let
@@ -42,7 +42,11 @@ let
     in
     replacePrefix oldPrefixPrefix newPrefixPrefix str;
 
-  leadingSpacesToTabs = str: lib.strings.concatStringsSep "\n" (map (s: replacePrefixes "  " "\t" s) (lib.strings.splitString "\n" str));
+  leadingSpacesToTabs =
+    str:
+    lib.strings.concatStringsSep "\n" (
+      map (s: replacePrefixes "  " "\t" s) (lib.strings.splitString "\n" str)
+    );
 
   ipCommand =
     if cfg.mode == "tailscale" then
@@ -157,8 +161,7 @@ let
       isLocal ? false,
     }:
     let
-      shadowedClusterAddr =
-        if isLocal then "$ipAddr:${toString cfg.apiServerPort}" else "$clusterAddr";
+      shadowedClusterAddr = if isLocal then "$ipAddr:${toString cfg.apiServerPort}" else "$clusterAddr";
     in
     "mkKubeconfig \"${ca}\" \"${kubeconfig}\" \"${shadowedClusterAddr}\" \"${toString expirationDays}\" \"${username}\" \"${group}\"";
 
@@ -1735,7 +1738,7 @@ in
 
           serviceConfig = {
             ExecStart = ''
-              kubelet \
+              ${pkgs.kubernets}/bin/kubelet \
                 --config=/etc/kubernetes/kubelet/config.yaml \
                 --kubeconfig=/etc/kubernetes/kubelet.conf \
                 --v=2

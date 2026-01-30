@@ -1688,6 +1688,7 @@ in
           path = [
             pkgs.kubernetes
             pkgs.coreutils
+            pkgs.mount
           ];
 
           serviceConfig = {

@@ -79,6 +79,7 @@ in
       systemd.services.crio = {
         path = [
           pkgs.cri-o
+          pkgs.mount
         ];
 
         wantedBy = [ "multi-user.target" ];

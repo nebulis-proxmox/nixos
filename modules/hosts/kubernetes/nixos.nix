@@ -1590,7 +1590,7 @@ in
 
               	# wait for kubelet to create the static pods
 
-              	sleep 5
+              	sleep 10
 
               	${adminKubectl} create -f - <<-EOF
               		${indent 2kubeadmConfigMap}

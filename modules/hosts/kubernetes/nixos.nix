@@ -213,6 +213,7 @@ in
             pkgs.curl
             pkgs.gawk
             pkgs.kubernetes
+            pkgs.systemd
           ]
           ++ pathPackages;
           description = "Initialize Kubernetes cluster";
@@ -1561,25 +1562,25 @@ in
               	mkdir -p /etc/kubernetes/manifests
 
               	cat > /etc/kubernetes/manifests/etcd.yaml <<-EOF
-              		${indent 2etcdManifest}
+              		${indent 2 etcdManifest}
               	EOF
 
               	chmod 644 /etc/kubernetes/manifests/etcd.yaml
 
               	cat > /etc/kubernetes/manifests/kube-apiserver.yaml <<-EOF
-              		${indent 2apiServerManifest}
+              		${indent 2 apiServerManifest}
               	EOF
 
               	chmod 644 /etc/kubernetes/manifests/kube-apiserver.yaml
 
               	cat > /etc/kubernetes/manifests/kube-controller-manager.yaml <<-EOF
-              		${indent 2controllerManagerManifest}
+              		${indent 2 controllerManagerManifest}
               	EOF
 
               	chmod 644 /etc/kubernetes/manifests/kube-controller-manager.yaml
 
               	cat > /etc/kubernetes/manifests/kube-scheduler.yaml <<-EOF
-              		${indent 2schedulerManifest}
+              		${indent 2 schedulerManifest}
               	EOF
 
               	chmod 644 /etc/kubernetes/manifests/kube-scheduler.yaml
@@ -1593,27 +1594,27 @@ in
               	sleep 10
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2kubeadmConfigMap}
+              		${indent 2 kubeadmConfigMap}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2kubeadmConfigRules}
+              		${indent 2 kubeadmConfigRules}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2kubeadmRoleBinding}
+              		${indent 2 kubeadmRoleBinding}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2kubeletConfigMap}
+              		${indent 2 kubeletConfigMap}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2kubeletConfigRules}
+              		${indent 2 kubeletConfigRules}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2kubletConfigRoleBinding}
+              		${indent 2 kubletConfigRoleBinding}
               	EOF
 
               	${removeLabelsOnNodeCall}
@@ -1622,48 +1623,48 @@ in
               	${addTaintsOnNodeCall}
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2coreDnsConfigMap}
+              		${indent 2 coreDnsConfigMap}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2coreDnsRoleBinding}
+              		${indent 2 coreDnsRoleBinding}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2coreDnsServiceAccount}
+              		${indent 2 coreDnsServiceAccount}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2coreDnsDeployment}
+              		${indent 2 coreDnsDeployment}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2coreDnsService}
+              		${indent 2 coreDnsService}
               	EOF
 
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2kubeProxyConfigMap}
+              		${indent 2 kubeProxyConfigMap}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2kubeProxyDaemonSet}
+              		${indent 2 kubeProxyDaemonSet}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2kubeProxyServiceAccount}
+              		${indent 2 kubeProxyServiceAccount}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2kubeProxyRoleBinding}
+              		${indent 2 kubeProxyRoleBinding}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2kubeProxyRole}
+              		${indent 2 kubeProxyRole}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2kubeProxyRoleBindingNode}
+              		${indent 2 kubeProxyRoleBindingNode}
               	EOF
 
               	kill -2 $kubeletPid
@@ -1671,6 +1672,8 @@ in
               	rm -f /etc/kubernetes/admin.conf
                 
               	${mkSuperAdminKubeconfig { }}
+
+                systemctl start kubelet.service
               fi
             '';
         };
@@ -1684,9 +1687,13 @@ in
           wantedBy = [ "multi-user.target" ];
           path = [
             pkgs.kubernetes
+            pkgs.coreutils
           ];
 
           serviceConfig = {
+            ExecCondition = ''
+              ${pkgs.coreutils}/bin/test -f /etc/kubernetes/kubelet.conf
+            '';
             ExecStart = ''
               ${pkgs.kubernetes}/bin/kubelet \
                 --config=/etc/kubernetes/kubelet/config.yaml \

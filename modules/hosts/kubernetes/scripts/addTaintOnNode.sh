@@ -3,5 +3,5 @@ function addTaintOnNode() {
     local taintType="$2"
     local taintEffect="NoSchedule"
 
-    $KUBECTL get node "$nodeName" -o json | jq --arg taintType "$taintType" --arg taintEffect "$taintEffect" '.specs.taints += [{key: $taintType, effect: $taintEffect}] | .specs.taints |= unique_by(.key)' | $KUBECTL apply -f -
+    $KUBECTL get node "$nodeName" -o json | jq --arg taintType "$taintType" --arg taintEffect "$taintEffect" '.spec.taints += [{key: $taintType, effect: $taintEffect}] | .spec.taints |= unique_by(.key)' | $KUBECTL apply -f -
 }

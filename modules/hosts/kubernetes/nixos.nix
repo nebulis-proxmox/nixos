@@ -18,6 +18,32 @@ let
       lib.strings.splitString "\n" str
     );
 
+  replacePrefix =
+    oldPrefix: newPrefix: str:
+    if lib.strings.hasPrefix oldPrefix str then
+      newPrefix + (lib.strings.removePrefix oldPrefix str)
+    else
+      str;
+  
+  prefixCount =
+    prefix: str:
+    let
+      numberOfPrefixInStr = (builtins.stringLength str) / (builtins.stringLength prefix);
+      maxPrefixString = (lib.concatStrings (lib.replicate numberOfPrefixInStr prefix));
+    in
+    (lib.strings.commonPrefixLength maxPrefixString str) / (builtins.stringLength prefix);
+
+  replacePrefixes =
+    oldPrefix: newPrefix: str:
+    let
+      oldPrefixCount = prefixCount oldPrefix str;
+      oldPrefixPrefix = lib.concatStrings (lib.replicate oldPrefixCount oldPrefix);
+      newPrefixPrefix = lib.concatStrings (lib.replicate oldPrefixCount newPrefix);
+    in
+    replacePrefix oldPrefixPrefix newPrefixPrefix str;
+
+  leadingSpacesToTabs = str: lib.strings.concatStringsSep "\n" (map (s: replacePrefixes "  " "\t" s) (lib.strings.splitString "\n" str));
+
   ipCommand =
     if cfg.mode == "tailscale" then
       "$(tailscale ip -4)"
@@ -1499,7 +1525,7 @@ in
                 })
               );
             in
-            ''
+            leadingSpacesToTabs ''
               ${mkCertFunction}
               ${mkKubeconfigFunction}
               ${addLabelOnNodeFunction}

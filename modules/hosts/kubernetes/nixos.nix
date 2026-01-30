@@ -14,38 +14,8 @@ let
 
   indent =
     n: str:
-    lib.strings.concatStringsSep ("\n" + (lib.concatStrings (lib.replicate n " "))) (
+    lib.strings.concatStringsSep ("\n" + (lib.concatStrings (lib.replicate n "\t"))) (
       lib.strings.splitString "\n" str
-    );
-
-  replacePrefix =
-    oldPrefix: newPrefix: str:
-    if lib.strings.hasPrefix oldPrefix str then
-      newPrefix + (lib.strings.removePrefix oldPrefix str)
-    else
-      str;
-
-  prefixCount =
-    prefix: str:
-    let
-      numberOfPrefixInStr = (builtins.stringLength str) / (builtins.stringLength prefix);
-      maxPrefixString = (lib.concatStrings (lib.replicate numberOfPrefixInStr prefix));
-    in
-    (lib.strings.commonPrefixLength maxPrefixString str) / (builtins.stringLength prefix);
-
-  replacePrefixes =
-    oldPrefix: newPrefix: str:
-    let
-      oldPrefixCount = prefixCount oldPrefix str;
-      oldPrefixPrefix = lib.concatStrings (lib.replicate oldPrefixCount oldPrefix);
-      newPrefixPrefix = lib.concatStrings (lib.replicate oldPrefixCount newPrefix);
-    in
-    replacePrefix oldPrefixPrefix newPrefixPrefix str;
-
-  leadingSpacesToTabs =
-    str:
-    lib.strings.concatStringsSep "\n" (
-      map (s: replacePrefixes "  " "\t" s) (lib.strings.splitString "\n" str)
     );
 
   ipCommand =
@@ -1527,8 +1497,21 @@ in
                   ];
                 })
               );
+
+              addLabelsOnNodeCall = lib.strings.concatMapStringsSep "\n" (
+                label: "addLabelOnNode \"${config.networking.hostName}\" \"${label}\""
+              ) labelKeysToAdd;
+              removeLabelsOnNodeCall = lib.strings.concatMapStringsSep "\n" (
+                label: "removeLabelOnNode \"${config.networking.hostName}\" \"${label}\""
+              ) labelKeysToRemove;
+              addTaintsOnNodeCall = lib.strings.concatMapStringsSep "\n" (
+                taint: "addTaintOnNode \"${config.networking.hostName}\" \"${taint}\""
+              ) taintToAdd;
+              removeTaintsOnNodeCall = lib.strings.concatMapStringsSep "\n" (
+                taint: "removeTaintOnNode \"${config.networking.hostName}\" \"${taint}\""
+              ) taintToRemove;
             in
-            leadingSpacesToTabs ''
+            ''
               ${mkCertFunction}
               ${mkKubeconfigFunction}
               ${addLabelOnNodeFunction}
@@ -1543,184 +1526,151 @@ in
               etcdClusterAddr="${etcdClusterAddr}"
 
               if curl --silent --fail --insecure "https://$clusterAddr/livez" --max-time 10 >/dev/null; then
-                echo "Kubernetes API server is already running, skipping initialization of cluster."
+              	echo "Kubernetes API server is already running, skipping initialization of cluster."
 
-                ${mkKubeletKubeconfig { }}
-                ${mkSuperAdminKubeconfig { }}
+              	${mkKubeletKubeconfig { }}
+              	${mkSuperAdminKubeconfig { }}
 
-                kubelet --config=/etc/kubernetes/kubelet/config.yaml --kubeconfig=/etc/kubernetes/kubelet.conf &
-                kubeletPid=$!
+              	kubelet --config=/etc/kubernetes/kubelet/config.yaml --kubeconfig=/etc/kubernetes/kubelet.conf &
+              	kubeletPid=$!
 
-                sleep 5
+              	sleep 5
 
-                ${indent 2 (
-                  lib.strings.concatMapStringsSep "\n" (
-                    label: "removeLabelOnNode \"${config.networking.hostName}\" \"${label}\""
-                  ) labelKeysToRemove
-                )}
-                ${indent 2 (
-                  lib.strings.concatMapStringsSep "\n" (
-                    label: "addLabelOnNode \"${config.networking.hostName}\" \"${label}\""
-                  ) labelKeysToAdd
-                )}
-                ${indent 2 (
-                  lib.strings.concatMapStringsSep "\n" (
-                    taint: "addTaintOnNode \"${config.networking.hostName}\" \"${taint}\""
-                  ) taintToAdd
-                )}
-                ${indent 2 (
-                  lib.strings.concatMapStringsSep "\n" (
-                    taint: "removeTaintOnNode \"${config.networking.hostName}\" \"${taint}\""
-                  ) taintToRemove
-                )}
+              	${removeLabelsOnNodeCall}
+              	${addLabelsOnNodeCall}
+              	${removeTaintsOnNodeCall}
+              	${addTaintsOnNodeCall}
 
-                kill -2 $kubeletPid
+              	kill -2 $kubeletPid
               else
-                echo "Initializing Kubernetes cluster..."
+              	echo "Initializing Kubernetes cluster..."
 
-                ${mkApiServerCert}
-                ${mkKubeletClientCert}
-                ${mkFrontProxyClientCert}
-                ${mkEtcdServerCert}
-                ${mkEtcdPeerCert}
-                ${mkEtcdHealthcheckClientCert}
-                ${mkEtcdApiServerClientCert}
+              	${mkApiServerCert}
+              	${mkKubeletClientCert}
+              	${mkFrontProxyClientCert}
+              	${mkEtcdServerCert}
+              	${mkEtcdPeerCert}
+              	${mkEtcdHealthcheckClientCert}
+              	${mkEtcdApiServerClientCert}
 
-                ${mkKubeletKubeconfig { isLocal = true; }}
-                ${mkSuperAdminKubeconfig { isLocal = true; }}
-                ${mkControllerManagerKubeconfig}
-                ${mkSchedulerKubeconfig}
+              	${mkKubeletKubeconfig { isLocal = true; }}
+              	${mkSuperAdminKubeconfig { isLocal = true; }}
+              	${mkControllerManagerKubeconfig}
+              	${mkSchedulerKubeconfig}
 
-                mkdir -p /etc/kubernetes/manifests
+              	mkdir -p /etc/kubernetes/manifests
 
-                cat > /etc/kubernetes/manifests/etcd.yaml <<-EOF
-                  ${indent 4 etcdManifest}
-                EOF
+              	cat > /etc/kubernetes/manifests/etcd.yaml <<-EOF
+              		${indent 2etcdManifest}
+              	EOF
 
-                chmod 644 /etc/kubernetes/manifests/etcd.yaml
+              	chmod 644 /etc/kubernetes/manifests/etcd.yaml
 
-                cat > /etc/kubernetes/manifests/kube-apiserver.yaml <<-EOF
-                  ${indent 4 apiServerManifest}
-                EOF
+              	cat > /etc/kubernetes/manifests/kube-apiserver.yaml <<-EOF
+              		${indent 2apiServerManifest}
+              	EOF
 
-                chmod 644 /etc/kubernetes/manifests/kube-apiserver.yaml
+              	chmod 644 /etc/kubernetes/manifests/kube-apiserver.yaml
 
-                cat > /etc/kubernetes/manifests/kube-controller-manager.yaml <<-EOF
-                  ${indent 4 controllerManagerManifest}
-                EOF
+              	cat > /etc/kubernetes/manifests/kube-controller-manager.yaml <<-EOF
+              		${indent 2controllerManagerManifest}
+              	EOF
 
-                chmod 644 /etc/kubernetes/manifests/kube-controller-manager.yaml
+              	chmod 644 /etc/kubernetes/manifests/kube-controller-manager.yaml
 
-                cat > /etc/kubernetes/manifests/kube-scheduler.yaml <<-EOF
-                  ${indent 4 schedulerManifest}
-                EOF
+              	cat > /etc/kubernetes/manifests/kube-scheduler.yaml <<-EOF
+              		${indent 2schedulerManifest}
+              	EOF
 
-                chmod 644 /etc/kubernetes/manifests/kube-scheduler.yaml
+              	chmod 644 /etc/kubernetes/manifests/kube-scheduler.yaml
 
-                kubelet --config=/etc/kubernetes/kubelet/config.yaml --kubeconfig=/etc/kubernetes/kubelet.conf &
+              	kubelet --config=/etc/kubernetes/kubelet/config.yaml --kubeconfig=/etc/kubernetes/kubelet.conf &
 
-                kubeletPid=$!
+              	kubeletPid=$!
 
-                # wait for kubelet to create the static pods
+              	# wait for kubelet to create the static pods
 
-                sleep 5
+              	sleep 5
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 kubeadmConfigMap}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2kubeadmConfigMap}
+              	EOF
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 kubeadmConfigRules}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2kubeadmConfigRules}
+              	EOF
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 kubeadmRoleBinding}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2kubeadmRoleBinding}
+              	EOF
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 kubeletConfigMap}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2kubeletConfigMap}
+              	EOF
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 kubeletConfigRules}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2kubeletConfigRules}
+              	EOF
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 kubletConfigRoleBinding}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2kubletConfigRoleBinding}
+              	EOF
 
-                ${indent 2 (
-                  lib.strings.concatMapStringsSep "\n" (
-                    label: "removeLabelOnNode \"${config.networking.hostName}\" \"${label}\""
-                  ) labelKeysToRemove
-                )}
-                ${indent 2 (
-                  lib.strings.concatMapStringsSep "\n" (
-                    label: "addLabelOnNode \"${config.networking.hostName}\" \"${label}\""
-                  ) labelKeysToAdd
-                )}
-                ${indent 2 (
-                  lib.strings.concatMapStringsSep "\n" (
-                    taint: "addTaintOnNode \"${config.networking.hostName}\" \"${taint}\""
-                  ) taintToAdd
-                )}
-                ${indent 2 (
-                  lib.strings.concatMapStringsSep "\n" (
-                    taint: "removeTaintOnNode \"${config.networking.hostName}\" \"${taint}\""
-                  ) taintToRemove
-                )}
+              	${removeLabelsOnNodeCall}
+              	${addLabelsOnNodeCall}
+              	${removeTaintsOnNodeCall}
+              	${addTaintsOnNodeCall}
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 coreDnsConfigMap}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2coreDnsConfigMap}
+              	EOF
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 coreDnsRoleBinding}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2coreDnsRoleBinding}
+              	EOF
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 coreDnsServiceAccount}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2coreDnsServiceAccount}
+              	EOF
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 coreDnsDeployment}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2coreDnsDeployment}
+              	EOF
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 coreDnsService}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2coreDnsService}
+              	EOF
 
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 kubeProxyConfigMap}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2kubeProxyConfigMap}
+              	EOF
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 kubeProxyDaemonSet}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2kubeProxyDaemonSet}
+              	EOF
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 kubeProxyServiceAccount}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2kubeProxyServiceAccount}
+              	EOF
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 kubeProxyRoleBinding}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2kubeProxyRoleBinding}
+              	EOF
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 kubeProxyRole}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2kubeProxyRole}
+              	EOF
 
-                ${adminKubectl} create -f - <<-EOF
-                  ${indent 4 kubeProxyRoleBindingNode}
-                EOF
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2kubeProxyRoleBindingNode}
+              	EOF
 
+              	kill -2 $kubeletPid
 
-                kill -2 $kubeletPid
-
-                rm -f /etc/kubernetes/admin.conf
+              	rm -f /etc/kubernetes/admin.conf
                 
-                ${mkSuperAdminKubeconfig { }}
+              	${mkSuperAdminKubeconfig { }}
               fi
             '';
         };

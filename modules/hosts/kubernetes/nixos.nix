@@ -1565,7 +1565,7 @@ in
               	${crictl} pull registry.k8s.io/kube-apiserver:v1.34.3 # Make version consistent
               	${crictl} pull registry.k8s.io/kube-controller-manager:v1.34.3  # Make version consistent
               	${crictl} pull registry.k8s.io/kube-scheduler:v1.34.3  # Make version consistent
-              	${crictl} pull registry.k8s.io/etcd:3.5.10-0 # Make version consistent
+              	${crictl} pull registry.k8s.io/etcd:3.6.5-0 # Make version consistent
 
               	${mkApiServerCert}
               	${mkKubeletClientCert}

@@ -93,5 +93,11 @@ in
     virtualbox-nwmqpa
     utm-nwmqpa
   ];
+  "ca-typha.key.age".publicKeys = [
+    nwmqpaMain
+    mzlapqMain
+    virtualbox-nwmqpa
+    utm-nwmqpa
+  ];
   # END_SECRETS
 }

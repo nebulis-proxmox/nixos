@@ -371,6 +371,14 @@ in
                 isLocal = true;
               };
 
+              mkCalicoKubeconfig = mkKubeconfig {
+                ca = "/etc/kubernetes/pki/ca";
+                kubeconfig = "/etc/kubernetes/calico-cni.conf";
+                username = "calico-cni";
+                expirationDays = 365;
+                isLocal = true;
+              };
+
               etcdManifest = ''
                 apiVersion: v1
                 kind: Pod
@@ -1499,6 +1507,9 @@ in
                 })
               );
 
+              calicoClusterRole = readManifest "calico-cni.cluster-role.yaml";
+              calicoClusterRoleBinding = readManifest "calico-cni.cluster-role-binding.yaml";
+
               addLabelsOnNodeCall = lib.strings.concatMapStringsSep "\n" (
                 label: "addLabelOnNode \"${config.networking.hostName}\" \"${label}\""
               ) labelKeysToAdd;
@@ -1531,6 +1542,7 @@ in
 
               	${mkKubeletKubeconfig { }}
               	${mkSuperAdminKubeconfig { }}
+                ${mkCalicoKubeconfig}
 
               	kubelet --config=/etc/kubernetes/kubelet/config.yaml --kubeconfig=/etc/kubernetes/kubelet.conf &
               	kubeletPid=$!
@@ -1558,6 +1570,7 @@ in
               	${mkSuperAdminKubeconfig { isLocal = true; }}
               	${mkControllerManagerKubeconfig}
               	${mkSchedulerKubeconfig}
+                ${mkCalicoKubeconfig}
 
               	mkdir -p /etc/kubernetes/manifests
 
@@ -1585,13 +1598,21 @@ in
 
               	chmod 644 /etc/kubernetes/manifests/kube-scheduler.yaml
 
-              	kubelet --config=/etc/kubernetes/kubelet/config.yaml --kubeconfig=/etc/kubernetes/kubelet.conf &
+              	kubelet --config=/etc/kubernetes/kubelet/config.yaml --kubeconfig=/etc/kubernetes/kubelet.conf --v=2 &
 
               	kubeletPid=$!
 
               	# wait for kubelet to create the static pods
 
               	sleep 10
+
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2 calicoClusterRole}
+              	EOF
+
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2 calicoClusterRoleBinding}
+              	EOF
 
               	${adminKubectl} create -f - <<-EOF
               		${indent 2 kubeadmConfigMap}
@@ -1641,7 +1662,6 @@ in
               	${adminKubectl} create -f - <<-EOF
               		${indent 2 coreDnsService}
               	EOF
-
 
               	${adminKubectl} create -f - <<-EOF
               		${indent 2 kubeProxyConfigMap}

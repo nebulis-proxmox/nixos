@@ -144,6 +144,7 @@ in
                 description = ''
                   Additional systemd service dependencies
                 '';
+              };
             };
           }
         )

@@ -214,6 +214,7 @@ in
             pkgs.gawk
             pkgs.kubernetes
             pkgs.systemd
+            pkgs.cri-tools
           ]
           ++ pathPackages;
           description = "Initialize Kubernetes cluster";
@@ -1522,6 +1523,8 @@ in
               removeTaintsOnNodeCall = lib.strings.concatMapStringsSep "\n" (
                 taint: "removeTaintOnNode \"${config.networking.hostName}\" \"${taint}\""
               ) taintToRemove;
+
+              crictl = "${pkgs.cri-tools}/bin/crictl";
             in
             ''
               ${mkCertFunction}
@@ -1557,6 +1560,12 @@ in
               	kill -2 $kubeletPid
               else
               	echo "Initializing Kubernetes cluster..."
+
+              	# Pull required images
+              	${crictl} pull registry.k8s.io/kube-apiserver:v1.34.3 # Make version consistent
+              	${crictl} pull registry.k8s.io/kube-controller-manager:v1.34.3  # Make version consistent
+              	${crictl} pull registry.k8s.io/kube-scheduler:v1.34.3  # Make version consistent
+              	${crictl} pull registry.k8s.io/etcd:3.5.10-0 # Make version consistent
 
               	${mkApiServerCert}
               	${mkKubeletClientCert}
@@ -1604,7 +1613,7 @@ in
 
               	# wait for kubelet to create the static pods
 
-              	sleep 10
+              	sleep 15
 
               	${adminKubectl} create -f - <<-EOF
               		${indent 2 calicoClusterRole}

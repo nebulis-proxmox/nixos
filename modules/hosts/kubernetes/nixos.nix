@@ -1747,12 +1747,14 @@ in
             mode = "tcp";
             port = 443;
             target = "127.0.0.1:${toString cfg.apiServerPort}";
+            requires = [ "kubelet.service" ];
           };
 
           "${cfg.tailscaleEtcdSvc}" = {
             mode = "tcp";
             port = 443;
             target = "127.0.0.1:${toString cfg.etcdClientPort}";
+            requires = [ "kubelet.service" ];
           };
         };
       };

@@ -138,6 +138,12 @@ in
                   Target of the tailscale service
                 '';
               };
+              requires = mkOption {
+                type = types.listOf types.str;
+                default = [ ];
+                description = ''
+                  Additional systemd service dependencies
+                '';
             };
           }
         )

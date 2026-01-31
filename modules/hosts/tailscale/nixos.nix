@@ -44,7 +44,7 @@ in
             "tailscaled.service"
             "tailscaled-autoconnect.service"
           ];
-          requires = [ "tailscaled.service" ];
+          requires = [ "tailscaled.service" ] ++ value.requires;
 
           serviceConfig = {
             Type = "oneshot";

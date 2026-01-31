@@ -39,37 +39,37 @@ in
           '';
           mode = "0644";
         };
-        # "cni/net.d/10-calico.conflist" = {
-        #   text = ''
-        #     {
-        #       "name": "k8s-pod-network",
-        #       "cniVersion": "1.0.0",
-        #       "plugins": [
-        #         {
-        #           "type": "calico",
-        #           "log_level": "info",
-        #           "datastore_type": "kubernetes",
-        #           "mtu": 1500,
-        #           "ipam": {
-        #             "type": "calico-ipam"
-        #           },
-        #           "policy": {
-        #             "type": "k8s"
-        #           },
-        #           "kubernetes": {
-        #             "kubeconfig": "/etc/kubernetes/calico-cni.conf"
-        #           }
-        #         },
-        #         {
-        #           "type": "portmap",
-        #           "snat": true,
-        #           "capabilities": {"portMappings": true}
-        #         }
-        #       ]
-        #     }
-        #   '';
-        #   mode = "0644";
-        # };
+        "cni/net.d/10-calico.conflist" = {
+          text = ''
+            {
+              "name": "k8s-pod-network",
+              "cniVersion": "1.0.0",
+              "plugins": [
+                {
+                  "type": "calico",
+                  "log_level": "info",
+                  "datastore_type": "kubernetes",
+                  "mtu": 1500,
+                  "ipam": {
+                    "type": "calico-ipam"
+                  },
+                  "policy": {
+                    "type": "k8s"
+                  },
+                  "kubernetes": {
+                    "kubeconfig": "/etc/kubernetes/calico-cni.conf"
+                  }
+                },
+                {
+                  "type": "portmap",
+                  "snat": true,
+                  "capabilities": {"portMappings": true}
+                }
+              ]
+            }
+          '';
+          mode = "0644";
+        };
         "crictl.yaml" = {
           text = ''
             runtime-endpoint: unix:///var/run/crio/crio.sock

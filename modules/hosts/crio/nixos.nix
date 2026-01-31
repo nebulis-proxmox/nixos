@@ -15,7 +15,8 @@ in
         cri-tools
         cni
         cni-plugins
-        calicoctl
+        calicoctl # Enable only with K8S ?
+        calico-cni-plugin # Enable only with K8S ?
       ];
 
       environment.etc = {

@@ -39,6 +39,21 @@ in
           '';
           mode = "0644";
         };
+        "containers/registries/00-unqualified-search-registries.conf" = {
+          text = ''
+            unqualified-search-registries = ["docker.io"]
+          '';
+          mode = "0644";
+        };
+        "containers/registries/01-k8s-search-registries.conf" = {
+          text = ''
+            [[registry]]
+            prefix = "registry.k8s.io"
+            location = "registry.k8s.io"
+            insecure = false
+          '';
+          mode = "0644";
+        };
         "cni/net.d/10-calico.conflist" = {
           text = ''
             {

@@ -33,31 +33,39 @@ in
         permitCertUid = "caddy";
       };
 
-      systemd.services = lib.mapAttrs' (
-        name: value:
-        nameValuePair ("tailscale-${name}-svc") ({
-          enableStrictShellChecks = true;
-          path = [
-            cfg.package
-          ];
-          after = [
-            "tailscaled.service"
-            "tailscaled-autoconnect.service"
-          ];
-          requires = [ "tailscaled.service" ] ++ value.requires;
+      systemd = {
+        targets = {
+          tailscale-svcs = {
+            wantedBy = [ "multi-user.target" ];
+          }
+        }
 
-          serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
-          };
+        services = lib.mapAttrs' (
+          name: value:
+          nameValuePair ("tailscale-${name}-svc") ({
+            enableStrictShellChecks = true;
+            path = [
+              cfg.package
+            ];
+            after = [
+              "tailscaled.service"
+              "tailscaled-autoconnect.service"
+            ];
+            requires = [ "tailscaled.service" ] ++ value.requires;
 
-          script = "tailscale serve --service=svc:${name} --${value.mode}=${toString value.port} ${value.target}";
-          preStop = "tailscale serve drain svc:${name} && sleep 10";
-          postStop = "tailscale serve clear svc:${name}";
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+            };
 
-          wantedBy = [ "multi-user.target" ];
-        })
-      ) cfg.services;
+            script = "tailscale serve --service=svc:${name} --${value.mode}=${toString value.port} ${value.target}";
+            preStop = "tailscale serve drain svc:${name} && sleep 10";
+            postStop = "tailscale serve clear svc:${name}";
+
+            wantedBy = [ "tailscale-svcs.target" ];
+          })
+        ) cfg.services;
+      };
 
       environment.persistence."${config.nebulis.impermanence.dontBackup}" = {
         hideMounts = true;

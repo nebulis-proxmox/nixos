@@ -29,17 +29,23 @@ let
     cfg.mode == "tailscale"
   ) "$(tailscale dns status | grep -A1 'suffix' | awk '{print $6}' | sed -e 's/)//g')";
 
-  clusterAddr =
+  clusterHost =
     if cfg.mode == "tailscale" then
-      "${cfg.tailscaleApiServerSvc}.${tailscaleDnsCommand}:443"
+      "${cfg.tailscaleApiServerSvc}.${tailscaleDnsCommand}"
     else
-      "${cfg.apiServerHost}:${toString cfg.apiServerPort}";
+      "${cfg.apiServerHost}";
+
+  clusterAddr =
+    "${clusterHost}:" + (if cfg.mode == "tailscale" then "443" else toString cfg.apiServerPort);
+
+  etcdClusterHost =
+    if cfg.mode == "tailscale" then
+      "${cfg.tailscaleEtcdSvc}.${tailscaleDnsCommand}"
+    else
+      "${cfg.apiServerHost}";
 
   etcdClusterAddr =
-    if cfg.mode == "tailscale" then
-      "${cfg.tailscaleEtcdSvc}.${tailscaleDnsCommand}:443"
-    else
-      "${cfg.apiServerHost}:${toString cfg.etcdPeerPort}";
+    "${etcdClusterHost}:" + (if cfg.mode == "tailscale" then "443" else toString cfg.etcdPeerPort);
 
   pathPackages =
     if cfg.mode == "tailscale" then
@@ -257,7 +263,7 @@ in
                     "kubernetes.default"
                     "kubernetes.default.svc"
                     "kubernetes.default.svc.cluster.local"
-                    (thenOrNull (tailscaleDnsCommand != null) "$clusterAddr")
+                    (thenOrNull (tailscaleDnsCommand != null) "$clusterHost")
                     (thenOrNull (cfg.mode == "tailscale") cfg.tailscaleApiServerSvc)
                     config.networking.hostName
                   ];
@@ -297,7 +303,7 @@ in
                     "::1"
                   ];
                   DNS = [
-                    (thenOrNull (tailscaleDnsCommand != null) "$etcdClusterAddr")
+                    (thenOrNull (tailscaleDnsCommand != null) "$etcdClusterHost")
                     (thenOrNull (cfg.mode == "tailscale") cfg.tailscaleEtcdSvc)
                     config.networking.hostName
                     "localhost"
@@ -1567,9 +1573,11 @@ in
               ${waitForNetwork}
               ${waitForDns}
 
+              clusterHost="${clusterHost}"
               clusterAddr="${clusterAddr}"
               ipAddr="${ipCommand}"
               etcdClusterAddr="${etcdClusterAddr}"
+              etcdClusterHost="${etcdClusterHost}"
 
               if curl --silent --fail --insecure "https://$clusterAddr/livez" --max-time 10 >/dev/null; then
               	echo "Kubernetes API server is already running, skipping initialization of cluster."
@@ -1745,6 +1753,7 @@ in
           ];
           requires = [ "crio.service" ];
           wantedBy = [ "multi-user.target" ];
+          before = [ "tailscale-svcs.target" ];
           path = [
             pkgs.kubernetes
             pkgs.coreutils

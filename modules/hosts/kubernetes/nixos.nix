@@ -237,6 +237,7 @@ in
             pkgs.kubernetes
             pkgs.systemd
             pkgs.cri-tools
+            pkgs.mount
           ]
           ++ pathPackages;
           description = "Initialize Kubernetes cluster";

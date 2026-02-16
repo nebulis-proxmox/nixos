@@ -63,9 +63,7 @@ let
     done
   '';
 
-  waitForDns = thenOrNull (
-    cfg.mode == "tailscale"
-  ) ''
+  waitForDns = thenOrNull (cfg.mode == "tailscale") ''
     until [ ! -z "${tailscaleDnsCommand}" ] && [ "${tailscaleDnsCommand}" != "search" ]; do
       echo "Waiting for Tailscale DNS suffix..."
       sleep 1
@@ -1535,7 +1533,7 @@ in
                     namespace = "kube-system";
                   };
                   data = {
-                    "ca-typha.crt" = readFile "${inputs.self}/certs/ca-typha.crt";
+                    "ca-typha.crt" = builtins.readFile "${inputs.self}/certs/ca-typha.crt";
                   };
                 })
               );

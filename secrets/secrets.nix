@@ -62,6 +62,12 @@ in
   "tailscaleKey.age".publicKeys = all;
 
   # CA keys
+  "sa-kubernetes.key.age".publicKeys = [
+    nwmqpaMain
+    mzlapqMain
+    virtualbox-nwmqpa
+    utm-nwmqpa
+  ];
   "ca-root.key.age".publicKeys = [
     nwmqpaMain
     mzlapqMain
@@ -83,12 +89,6 @@ in
     utm-nwmqpa
   ];
   "ca-kubernetes-front-proxy.key.age".publicKeys = [
-    nwmqpaMain
-    mzlapqMain
-    virtualbox-nwmqpa
-    utm-nwmqpa
-  ];
-  "sa-kubernetes.key.age".publicKeys = [
     nwmqpaMain
     mzlapqMain
     virtualbox-nwmqpa

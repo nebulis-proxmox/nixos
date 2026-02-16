@@ -67,7 +67,7 @@ authorityKeyIdentifier  = keyid:always,issuer:always
 keyUsage                = critical,digitalSignature,keyEncipherment,keyCertSign,cRLSign
 EOF
 
-nix run $rootdir/utils/openssl -- genpkey -algorithm ED25519 -out "$tempdir/ca-$ca_name.key"
+nix run "$rootdir/utils/openssl" -- genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-384 -out "$tempdir/ca-$ca_name.key"
 
 cd $rootdir/secrets
 

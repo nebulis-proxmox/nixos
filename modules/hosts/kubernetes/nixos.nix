@@ -76,6 +76,13 @@ let
     done
   '';
 
+  waitForCluster = ''
+    until curl --silent --fail --insecure https://${clusterAddr}/readyz --max-time 10 >/dev/null; do
+      echo "Waiting for Kubernetes API server to be ready..."
+      sleep 1
+    done
+  '';
+
   readModuleFile = file: builtins.readFile "${inputs.self}/modules/hosts/kubernetes/${file}";
   readManifest = manifest: readModuleFile "manifests/${manifest}";
 
@@ -1045,6 +1052,8 @@ in
                 ${thenOrNull (
                   cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
                 ) "systemctl start tailscale-${cfg.tailscaleApiServerSvc}-svc.service"}
+
+                ${waitForCluster}
 
                 kubeadm init \
                   --apiserver-advertise-address="$ipAddr" \

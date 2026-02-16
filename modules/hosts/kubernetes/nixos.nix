@@ -27,7 +27,7 @@ let
 
   tailscaleDnsCommand = thenOrNull (
     cfg.mode == "tailscale"
-  ) "$(tailscale dns status | grep -A1 'Search domains' | tail -n 1 | awk '{print $2}')";
+  ) "$(tailscale dns status | grep -A1 'suffix' | awk '{print $6}' | sed -e 's/)//g')";
 
   clusterAddr =
     if cfg.mode == "tailscale" then
@@ -163,6 +163,7 @@ in
         "ca-kubernetes.key".file = inputs.self + "/secrets/ca-kubernetes.key.age";
         "ca-etcd.key".file = inputs.self + "/secrets/ca-etcd.key.age";
         "ca-kubernetes-front-proxy.key".file = inputs.self + "/secrets/ca-kubernetes-front-proxy.key.age";
+        "ca-typha.key".file = inputs.self + "/secrets/ca-typha.key.age";
         "sa-kubernetes.key".file = inputs.self + "/secrets/sa-kubernetes.key.age";
       };
 
@@ -189,6 +190,14 @@ in
         };
         "kubernetes/pki/etcd/ca.crt" = {
           text = builtins.readFile "${inputs.self}/certs/ca-etcd.crt";
+          mode = "0644";
+        };
+        "kubernetes/pki/typha-ca.key" = {
+          source = config.age.secrets."ca-typha.key".path;
+          mode = "0600";
+        };
+        "kubernetes/pki/typha-ca.crt" = {
+          text = builtins.readFile "${inputs.self}/certs/ca-typha.crt";
           mode = "0644";
         };
         "kubernetes/pki/sa.key" = {
@@ -1505,6 +1514,20 @@ in
                       name = "system:bootstrappers:kubeadm:default-node-token";
                     }
                   ];
+                })
+              );
+
+              calicoTyphaCaConfigMap = (
+                builtins.toJSON ({
+                  apiVersion = "v1";
+                  kind = "ConfigMap";
+                  metadata = {
+                    name = "calico-typha-ca";
+                    namespace = "kube-system";
+                  };
+                  data = {
+                    "ca-typha.crt" = readFile "${inputs.self}/certs/ca-typha.crt";
+                  };
                 })
               );
 

@@ -221,10 +221,6 @@ in
           text = builtins.readFile "${inputs.self}/certs/sa-kubernetes.pub";
           mode = "0644";
         };
-        "kubernetes/kubelet/config.yaml" = {
-          text = kubeletManifest;
-          mode = "0644";
-        };
       };
 
       systemd.services = {
@@ -411,551 +407,6 @@ in
                 expirationDays = 365;
                 isLocal = true;
               };
-
-              etcdManifest = ''
-                apiVersion: v1
-                kind: Pod
-                metadata:
-                  annotations:
-                    kubeadm.kubernetes.io/etcd.advertise-client-urls: https://$ipAddr:${toString cfg.etcdClientPort}
-                  labels:
-                    component: etcd
-                    tier: control-plane
-                  name: etcd
-                  namespace: kube-system
-                spec:
-                  containers:
-                  - command:
-                    - etcd
-                    - --name=${config.networking.hostName}
-                    - --data-dir=/var/lib/etcd
-                    - --advertise-client-urls=https://$ipAddr:${toString cfg.etcdClientPort}
-                    - --listen-client-urls=https://127.0.0.1:${toString cfg.etcdClientPort},https://$ipAddr:${toString cfg.etcdClientPort}
-                    - --initial-advertise-peer-urls=https://$ipAddr:${toString cfg.etcdPeerPort}
-                    - --initial-cluster=${config.networking.hostName}=https://$ipAddr:${toString cfg.etcdPeerPort}
-                    - --listen-metrics-urls=http://127.0.0.1:2381
-                    - --listen-peer-urls=https://$ipAddr:${toString cfg.etcdPeerPort}
-                    - --client-cert-auth=true
-                    - --peer-client-cert-auth=true
-                    - --feature-gates=InitialCorruptCheck=true
-                    - --snapshot-count=10000
-                    - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
-                    - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
-                    - --cert-file=/etc/kubernetes/pki/etcd/server.crt
-                    - --key-file=/etc/kubernetes/pki/etcd/server.key
-                    - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
-                    - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
-                    - --watch-progress-notify-interval=5s
-                    image: registry.k8s.io/etcd:3.6.5-0
-                    imagePullPolicy: IfNotPresent
-                    livenessProbe:
-                      failureThreshold: 8
-                      httpGet:
-                        host: 127.0.0.1
-                        path: /livez
-                        port: probe-port
-                        scheme: HTTP
-                      initialDelaySeconds: 10
-                      periodSeconds: 10
-                      timeoutSeconds: 15
-                    name: etcd
-                    ports:
-                    - containerPort: 2381
-                      name: probe-port
-                      protocol: TCP
-                    readinessProbe:
-                      failureThreshold: 3
-                      httpGet:
-                        host: 127.0.0.1
-                        path: /readyz
-                        port: probe-port
-                        scheme: HTTP
-                      periodSeconds: 1
-                      timeoutSeconds: 15
-                    resources:
-                      requests:
-                        cpu: 100m
-                        memory: 100Mi
-                    startupProbe:
-                      failureThreshold: 24
-                      httpGet:
-                        host: 127.0.0.1
-                        path: /readyz
-                        port: probe-port
-                        scheme: HTTP
-                      initialDelaySeconds: 10
-                      periodSeconds: 10
-                      timeoutSeconds: 15
-                    volumeMounts:
-                    - mountPath: /var/lib/etcd
-                      name: etcd-data
-                    - mountPath: /etc/kubernetes/pki/etcd
-                      name: etcd-certs
-                  hostNetwork: true
-                  priority: 2000001000
-                  priorityClassName: system-node-critical
-                  securityContext:
-                    seccompProfile:
-                      type: RuntimeDefault
-                  volumes:
-                  - hostPath:
-                      path: /etc/kubernetes/pki/etcd
-                      type: DirectoryOrCreate
-                    name: etcd-certs
-                  - hostPath:
-                      path: /var/lib/etcd
-                      type: DirectoryOrCreate
-                    name: etcd-data
-                status: {}
-              '';
-
-              apiServerManifest = ''
-                apiVersion: v1
-                kind: Pod
-                metadata:
-                  annotations:
-                    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: $ipAddr:${toString cfg.apiServerPort}
-                  labels:
-                    component: kube-apiserver
-                    tier: control-plane
-                  name: kube-apiserver
-                  namespace: kube-system
-                spec:
-                  containers:
-                  - command:
-                    - kube-apiserver
-                    - --advertise-address=$ipAddr
-                    - --allow-privileged=true
-                    - --authorization-mode=Node,RBAC
-                    - --client-ca-file=/etc/kubernetes/pki/ca.crt
-                    - --enable-admission-plugins=NodeRestriction
-                    - --enable-bootstrap-token-auth=true
-                    - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
-                    - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
-                    - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
-                    - --etcd-servers=https://$ipAddr:${toString cfg.etcdClientPort}
-                    - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
-                    - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
-                    - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
-                    - --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
-                    - --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key
-                    - --requestheader-allowed-names=front-proxy-client
-                    - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
-                    - --requestheader-extra-headers-prefix=X-Remote-Extra-
-                    - --requestheader-group-headers=X-Remote-Group
-                    - --requestheader-username-headers=X-Remote-User
-                    - --secure-port=${toString cfg.apiServerPort}
-                    - --service-account-issuer=https://kubernetes.default.svc.cluster.local
-                    - --service-account-key-file=/etc/kubernetes/pki/sa.pub
-                    - --service-account-signing-key-file=/etc/kubernetes/pki/sa.key
-                    - --service-cluster-ip-range=${cfg.clusterIpRange}
-                    - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
-                    - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
-                    image: registry.k8s.io/kube-apiserver:v1.34.3
-                    imagePullPolicy: IfNotPresent
-                    livenessProbe:
-                      failureThreshold: 8
-                      httpGet:
-                        host: $ipAddr
-                        path: /livez
-                        port: probe-port
-                        scheme: HTTPS
-                      initialDelaySeconds: 10
-                      periodSeconds: 10
-                      timeoutSeconds: 15
-                    name: kube-apiserver
-                    ports:
-                    - containerPort: ${toString cfg.apiServerPort}
-                      name: probe-port
-                      protocol: TCP
-                    readinessProbe:
-                      failureThreshold: 3
-                      httpGet:
-                        host: $ipAddr
-                        path: /readyz
-                        port: probe-port
-                        scheme: HTTPS
-                      periodSeconds: 1
-                      timeoutSeconds: 15
-                    resources:
-                      requests:
-                        cpu: 250m
-                    startupProbe:
-                      failureThreshold: 24
-                      httpGet:
-                        host: $ipAddr
-                        path: /livez
-                        port: probe-port
-                        scheme: HTTPS
-                      initialDelaySeconds: 10
-                      periodSeconds: 10
-                      timeoutSeconds: 15
-                    volumeMounts:
-                    - mountPath: /etc/ssl/certs
-                      name: ca-certs
-                      readOnly: true
-                    - mountPath: /etc/pki/tls/certs
-                      name: etc-pki-tls-certs
-                      readOnly: true
-                    - mountPath: /etc/kubernetes/pki
-                      name: k8s-certs
-                      readOnly: true
-                  hostNetwork: true
-                  priority: 2000001000
-                  priorityClassName: system-node-critical
-                  securityContext:
-                    seccompProfile:
-                      type: RuntimeDefault
-                  volumes:
-                  - hostPath:
-                      path: /etc/ssl/certs
-                      type: DirectoryOrCreate
-                    name: ca-certs
-                  - hostPath:
-                      path: /etc/pki/tls/certs
-                      type: DirectoryOrCreate
-                    name: etc-pki-tls-certs
-                  - hostPath:
-                      path: /etc/kubernetes/pki
-                      type: DirectoryOrCreate
-                    name: k8s-certs
-                status: {}
-              '';
-
-              controllerManagerManifest = ''
-                apiVersion: v1
-                kind: Pod
-                metadata:
-                  labels:
-                    component: kube-controller-manager
-                    tier: control-plane
-                  name: kube-controller-manager
-                  namespace: kube-system
-                spec:
-                  containers:
-                  - command:
-                    - kube-controller-manager
-                    - --authentication-kubeconfig=/etc/kubernetes/controller-manager.conf
-                    - --authorization-kubeconfig=/etc/kubernetes/controller-manager.conf
-                    - --bind-address=127.0.0.1
-                    - --client-ca-file=/etc/kubernetes/pki/ca.crt
-                    - --cluster-name=kubernetes
-                    - --cluster-signing-cert-file=/etc/kubernetes/pki/ca.crt
-                    - --cluster-signing-key-file=/etc/kubernetes/pki/ca.key
-                    - --controllers=*,bootstrapsigner,tokencleaner
-                    - --kubeconfig=/etc/kubernetes/controller-manager.conf
-                    - --leader-elect=true
-                    - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
-                    - --root-ca-file=/etc/kubernetes/pki/ca.crt
-                    - --service-account-private-key-file=/etc/kubernetes/pki/sa.key
-                    - --use-service-account-credentials=true
-                    image: registry.k8s.io/kube-controller-manager:v1.34.3
-                    imagePullPolicy: IfNotPresent
-                    livenessProbe:
-                      failureThreshold: 8
-                      httpGet:
-                        host: 127.0.0.1
-                        path: /healthz
-                        port: probe-port
-                        scheme: HTTPS
-                      initialDelaySeconds: 10
-                      periodSeconds: 10
-                      timeoutSeconds: 15
-                    name: kube-controller-manager
-                    ports:
-                    - containerPort: 10257
-                      name: probe-port
-                      protocol: TCP
-                    resources:
-                      requests:
-                        cpu: 200m
-                    startupProbe:
-                      failureThreshold: 24
-                      httpGet:
-                        host: 127.0.0.1
-                        path: /healthz
-                        port: probe-port
-                        scheme: HTTPS
-                      initialDelaySeconds: 10
-                      periodSeconds: 10
-                      timeoutSeconds: 15
-                    volumeMounts:
-                    - mountPath: /etc/ssl/certs
-                      name: ca-certs
-                      readOnly: true
-                    - mountPath: /etc/pki/tls/certs
-                      name: etc-pki-tls-certs
-                      readOnly: true
-                    - mountPath: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
-                      name: flexvolume-dir
-                    - mountPath: /etc/kubernetes/pki
-                      name: k8s-certs
-                      readOnly: true
-                    - mountPath: /etc/kubernetes/controller-manager.conf
-                      name: kubeconfig
-                      readOnly: true
-                  hostNetwork: true
-                  priority: 2000001000
-                  priorityClassName: system-node-critical
-                  securityContext:
-                    seccompProfile:
-                      type: RuntimeDefault
-                  volumes:
-                  - hostPath:
-                      path: /etc/ssl/certs
-                      type: DirectoryOrCreate
-                    name: ca-certs
-                  - hostPath:
-                      path: /etc/pki/tls/certs
-                      type: DirectoryOrCreate
-                    name: etc-pki-tls-certs
-                  - hostPath:
-                      path: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
-                      type: DirectoryOrCreate
-                    name: flexvolume-dir
-                  - hostPath:
-                      path: /etc/kubernetes/pki
-                      type: DirectoryOrCreate
-                    name: k8s-certs
-                  - hostPath:
-                      path: /etc/kubernetes/controller-manager.conf
-                      type: FileOrCreate
-                    name: kubeconfig
-                status: {}
-              '';
-
-              schedulerManifest = ''
-                apiVersion: v1
-                kind: Pod
-                metadata:
-                  labels:
-                    component: kube-scheduler
-                    tier: control-plane
-                  name: kube-scheduler
-                  namespace: kube-system
-                spec:
-                  containers:
-                  - command:
-                    - kube-scheduler
-                    - --authentication-kubeconfig=/etc/kubernetes/scheduler.conf
-                    - --authorization-kubeconfig=/etc/kubernetes/scheduler.conf
-                    - --bind-address=127.0.0.1
-                    - --kubeconfig=/etc/kubernetes/scheduler.conf
-                    - --leader-elect=true
-                    image: registry.k8s.io/kube-scheduler:v1.34.3
-                    imagePullPolicy: IfNotPresent
-                    livenessProbe:
-                      failureThreshold: 8
-                      httpGet:
-                        host: 127.0.0.1
-                        path: /livez
-                        port: probe-port
-                        scheme: HTTPS
-                      initialDelaySeconds: 10
-                      periodSeconds: 10
-                      timeoutSeconds: 15
-                    name: kube-scheduler
-                    ports:
-                    - containerPort: 10259
-                      name: probe-port
-                      protocol: TCP
-                    readinessProbe:
-                      failureThreshold: 3
-                      httpGet:
-                        host: 127.0.0.1
-                        path: /readyz
-                        port: probe-port
-                        scheme: HTTPS
-                      periodSeconds: 1
-                      timeoutSeconds: 15
-                    resources:
-                      requests:
-                        cpu: 100m
-                    startupProbe:
-                      failureThreshold: 24
-                      httpGet:
-                        host: 127.0.0.1
-                        path: /livez
-                        port: probe-port
-                        scheme: HTTPS
-                      initialDelaySeconds: 10
-                      periodSeconds: 10
-                      timeoutSeconds: 15
-                    volumeMounts:
-                    - mountPath: /etc/kubernetes/scheduler.conf
-                      name: kubeconfig
-                      readOnly: true
-                  hostNetwork: true
-                  priority: 2000001000
-                  priorityClassName: system-node-critical
-                  securityContext:
-                    seccompProfile:
-                      type: RuntimeDefault
-                  volumes:
-                  - hostPath:
-                      path: /etc/kubernetes/scheduler.conf
-                      type: FileOrCreate
-                    name: kubeconfig
-                status: {}
-              '';
-
-              kubeadmConfigMap = builtins.toJSON ({
-                apiVersion = "v1";
-                kind = "ConfigMap";
-                metadata = {
-                  name = "kubeadm-config";
-                  namespace = "kube-system";
-                };
-                data = {
-                  ClusterConfiguration = ''
-                    apiServer: {}
-                    apiVersion: kubeadm.k8s.io/v1beta4
-                    caCertificateValidityPeriod: 87600h0m0s
-                    certificateValidityPeriod: 8760h0m0s
-                    certificatesDir: /etc/kubernetes/pki
-                    clusterName: kubernetes
-                    controllerManager: {}
-                    dns: {}
-                    encryptionAlgorithm: RSA-2048
-                    etcd:
-                      local:
-                        dataDir: /var/lib/etcd
-                    imageRepository: registry.k8s.io
-                    kind: ClusterConfiguration
-                    kubernetesVersion: v1.34.3
-                    networking:
-                      dnsDomain: cluster.local
-                      serviceSubnet: 10.96.0.0/12
-                    proxy: {}
-                    scheduler: {}
-                  '';
-                };
-              });
-
-              kubeadmConfigRules = builtins.toJSON ({
-                apiVersion = "rbac.authorization.k8s.io/v1";
-                kind = "Role";
-                metadata = {
-                  name = "kubeadm:nodes-kubeadm-config";
-                  namespace = "kube-system";
-                };
-                rules = [
-                  {
-                    apiGroups = [ "" ];
-                    resourceNames = [ "kubeadm-config" ];
-                    resources = [ "configmaps" ];
-                    verbs = [ "get" ];
-                  }
-                ];
-              });
-
-              kubeadmRoleBinding = builtins.toJSON ({
-                apiVersion = "rbac.authorization.k8s.io/v1";
-                kind = "RoleBinding";
-                metadata = {
-                  name = "kubeadm:nodes-kubeadm-config";
-                  namespace = "kube-system";
-                };
-                roleRef = {
-                  apiGroup = "rbac.authorization.k8s.io";
-                  kind = "Role";
-                  name = "kubeadm:nodes-kubeadm-config";
-                };
-                subjects = [
-                  {
-                    kind = "Group";
-                    name = "system:nodes";
-                  }
-                  {
-                    kind = "Group";
-                    name = "system:bootstrappers:kubeadm:default-node-token";
-                  }
-                ];
-              });
-
-              kubeletConfigMap = builtins.toJSON ({
-                apiVersion = "v1";
-                kind = "ConfigMap";
-                metadata = {
-                  name = "kubelet-config";
-                  namespace = "kube-system";
-                  annotations = {
-                    "kubeadm.kubernetes.io/component-config.hash" =
-                      "sha256:${builtins.hashString "sha256" kubeletManifest}";
-                  };
-                };
-                data = {
-                  kubelet = kubeletManifest;
-                };
-              });
-
-              kubeletConfigRules = builtins.toJSON ({
-                apiVersion = "rbac.authorization.k8s.io/v1";
-                kind = "Role";
-                metadata = {
-                  name = "kubeadm:kubelet-config";
-                  namespace = "kube-system";
-                };
-                rules = [
-                  {
-                    apiGroups = [ "" ];
-                    resourceNames = [ "kubelet-config" ];
-                    resources = [ "configmaps" ];
-                    verbs = [ "get" ];
-                  }
-                ];
-              });
-
-              kubletConfigRoleBinding = builtins.toJSON ({
-                apiVersion = "rbac.authorization.k8s.io/v1";
-                kind = "RoleBinding";
-                metadata = {
-                  name = "kubeadm:kubelet-config";
-                  namespace = "kube-system";
-                };
-                roleRef = {
-                  apiGroup = "rbac.authorization.k8s.io";
-                  kind = "Role";
-                  name = "kubeadm:kubelet-config";
-                };
-                subjects = [
-                  {
-                    kind = "Group";
-                    name = "system:nodes";
-                  }
-                  {
-                    kind = "Group";
-                    name = "system:bootstrappers:kubeadm:default-node-token";
-                  }
-                ];
-              });
-
-              labelKeysToAdd =
-                (map (v: "node-role.kubernetes.io/" + v) cfg.kind)
-                ++ (
-                  if (builtins.elem "worker" cfg.kind) then
-                    [ ]
-                  else
-                    [ "node.kubernetes.io/exclude-from-external-load-balancers" ]
-                );
-              labelKeysToRemove =
-                (map (v: "node-role.kubernetes.io/" + v) (
-                  builtins.filter (k: !(builtins.elem k cfg.kind)) [
-                    "control-plane"
-                    "worker"
-                  ]
-                ))
-                ++ (
-                  if (builtins.elem "worker" cfg.kind) then
-                    [ "node.kubernetes.io/exclude-from-external-load-balancers" ]
-                  else
-                    [ ]
-                );
-
-              taintToAdd =
-                if cfg.kind == [ "control-plane" ] then [ "node-role.kubernetes.io/control-plane" ] else [ ];
-              taintToRemove =
-                if cfg.kind != [ "control-plane" ] then [ "node-role.kubernetes.io/control-plane" ] else [ ];
 
               coreDnsConfigMap = builtins.toJSON ({
                 apiVersion = "v1";
@@ -1545,28 +996,21 @@ in
               calicoTyphaDeployment = readManifest "calico-typha.deployment.yaml";
               calicoTyphaService = readManifest "calico-typha.service.yaml";
 
-              addLabelsOnNodeCall = lib.strings.concatMapStringsSep "\n" (
-                label: "addLabelOnNode \"${config.networking.hostName}\" \"${label}\""
-              ) labelKeysToAdd;
-              removeLabelsOnNodeCall = lib.strings.concatMapStringsSep "\n" (
-                label: "removeLabelOnNode \"${config.networking.hostName}\" \"${label}\""
-              ) labelKeysToRemove;
-              addTaintsOnNodeCall = lib.strings.concatMapStringsSep "\n" (
-                taint: "addTaintOnNode \"${config.networking.hostName}\" \"${taint}\""
-              ) taintToAdd;
-              removeTaintsOnNodeCall = lib.strings.concatMapStringsSep "\n" (
-                taint: "removeTaintOnNode \"${config.networking.hostName}\" \"${taint}\""
-              ) taintToRemove;
+              apiServerCertExtraSans = [
+                "kubernetes"
+                "kubernetes.default"
+                "kubernetes.default.svc"
+                "kubernetes.default.svc.cluster.local"
+                (thenOrNull (tailscaleDnsCommand != null) "$clusterHost")
+                (thenOrNull (cfg.mode == "tailscale") cfg.tailscaleApiServerSvc)
+                config.networking.hostName
+              ];
 
               crictl = "${pkgs.cri-tools}/bin/crictl";
             in
             ''
               ${mkCertFunction}
               ${mkKubeconfigFunction}
-              ${addLabelOnNodeFunction}
-              ${removeLabelOnNodeFunction}
-              ${addTaintOnNodeFunction}
-              ${removeTaintOnNodeFunction}
 
               ${waitForNetwork}
               ${waitForDns}
@@ -1579,22 +1023,6 @@ in
 
               if curl --silent --fail --insecure "https://$clusterAddr/livez" --max-time 10 >/dev/null; then
               	echo "Kubernetes API server is already running, skipping initialization of cluster."
-
-              	${mkKubeletKubeconfig { }}
-              	${mkSuperAdminKubeconfig { }}
-                ${mkCalicoKubeconfig}
-
-              	kubelet --config=/etc/kubernetes/kubelet/config.yaml --kubeconfig=/etc/kubernetes/kubelet.conf &
-              	kubeletPid=$!
-
-              	sleep 5
-
-              	${removeLabelsOnNodeCall}
-              	${addLabelsOnNodeCall}
-              	${removeTaintsOnNodeCall}
-              	${addTaintsOnNodeCall}
-
-              	kill -2 $kubeletPid
               else
               	echo "Initializing Kubernetes cluster..."
 
@@ -1604,193 +1032,49 @@ in
               	${crictl} pull registry.k8s.io/kube-scheduler:v1.34.3  # Make version consistent
               	${crictl} pull registry.k8s.io/etcd:3.6.5-0 # Make version consistent
 
-              	${mkApiServerCert}
-              	${mkKubeletClientCert}
-              	${mkFrontProxyClientCert}
-              	${mkEtcdServerCert}
-              	${mkEtcdPeerCert}
-              	${mkEtcdHealthcheckClientCert}
-              	${mkEtcdApiServerClientCert}
-
-              	${mkKubeletKubeconfig { isLocal = true; }}
-              	${mkSuperAdminKubeconfig { isLocal = true; }}
-              	${mkControllerManagerKubeconfig}
-              	${mkSchedulerKubeconfig}
-                ${mkCalicoKubeconfig}
-
-              	mkdir -p /etc/kubernetes/manifests
-
-              	cat > /etc/kubernetes/manifests/etcd.yaml <<-EOF
-              		${indent 2 etcdManifest}
-              	EOF
-
-              	chmod 644 /etc/kubernetes/manifests/etcd.yaml
-
-              	cat > /etc/kubernetes/manifests/kube-apiserver.yaml <<-EOF
-              		${indent 2 apiServerManifest}
-              	EOF
-
-              	chmod 644 /etc/kubernetes/manifests/kube-apiserver.yaml
-
-              	cat > /etc/kubernetes/manifests/kube-controller-manager.yaml <<-EOF
-              		${indent 2 controllerManagerManifest}
-              	EOF
-
-              	chmod 644 /etc/kubernetes/manifests/kube-controller-manager.yaml
-
-              	cat > /etc/kubernetes/manifests/kube-scheduler.yaml <<-EOF
-              		${indent 2 schedulerManifest}
-              	EOF
-
-              	chmod 644 /etc/kubernetes/manifests/kube-scheduler.yaml
-
-              	kubelet --config=/etc/kubernetes/kubelet/config.yaml --kubeconfig=/etc/kubernetes/kubelet.conf --v=2 &
-
-              	kubeletPid=$!
-
-              	# wait for kubelet to create the static pods
-
-              	sleep 15
-
-              	${mkCalicoTyphaCert}
-                
-              	curl "https://raw.githubusercontent.com/projectcalico/calico/v3.31.3/manifests/crds.yaml" | ${adminKubectl} apply -f -
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 calicoClusterRole}
-              	EOF
-
-              	${adminKubectl} create clusterrolebinding calico-cni --clusterrole=calico-cni --user=calico-cni
-
-              	${adminKubectl} create configmap -n kube-system calico-typha-ca --from-file=/etc/kubernetes/pki/typha-ca.crt
-              	${adminKubectl} create secret generic -n kube-system calico-typha-certs --from-file=/etc/kubernetes/pki/typha.key --from-file=/etc/kubernetes/pki/typha.crt
-              	${adminKubectl} create serviceaccount -n kube-system calico-typha
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 calicoTyphaClusterRole}
-              	EOF
-
-              	${adminKubectl} create clusterrolebinding calico-typha --clusterrole=calico-typha --serviceaccount=kube-system:calico-typha
-              	
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 calicoTyphaDeployment}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 calicoTyphaService}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 kubeadmConfigMap}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 kubeadmConfigRules}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 kubeadmRoleBinding}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 kubeletConfigMap}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 kubeletConfigRules}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 kubletConfigRoleBinding}
-              	EOF
-
-              	${removeLabelsOnNodeCall}
-              	${addLabelsOnNodeCall}
-              	${removeTaintsOnNodeCall}
-              	${addTaintsOnNodeCall}
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 coreDnsConfigMap}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 coreDnsRoleBinding}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 coreDnsServiceAccount}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 coreDnsDeployment}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 coreDnsService}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 kubeProxyConfigMap}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 kubeProxyDaemonSet}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 kubeProxyServiceAccount}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 kubeProxyRoleBinding}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 kubeProxyRole}
-              	EOF
-
-              	${adminKubectl} create -f - <<-EOF
-              		${indent 2 kubeProxyRoleBindingNode}
-              	EOF
-
-              	kill -2 $kubeletPid
-
-              	rm -f /etc/kubernetes/admin.conf
-                
-              	${mkSuperAdminKubeconfig { }}
-
-                systemctl start kubelet.service
+                kubeadm init \
+                  --apiserver-advertise-address="$ipAddr" \
+                  --apiserver-bind-port="${toString cfg.apiServerPort}" \
+                  --cert-dir="/etc/kubernetes/pki" \
+                  --control-plane-endpoint="$clusterAddr" \
+                  --image-repository="registry.k8s.io" \
+                  --kubernetes-version="v1.34.3" \
+                  --node-name="${config.networking.hostName}" \
+                  --service-dns-domain="cluster.local" \
+                  --skip-certificate-key-print \
+                  --skip-token-print
               fi
             '';
         };
-        kubelet = {
-          description = "Kubelet";
-          documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
-          after = [
-            "init-kubernetes-cluster.service"
-          ];
-          requires = [ "crio.service" ];
-          wantedBy = [ "multi-user.target" ];
-          before = [ "tailscale-svcs.target" ];
-          path = [
-            pkgs.kubernetes
-            pkgs.coreutils
-            pkgs.mount
-          ];
+        # kubelet = {
+        #   description = "Kubelet";
+        #   documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+        #   after = [
+        #     "init-kubernetes-cluster.service"
+        #   ];
+        #   requires = [ "crio.service" ];
+        #   wantedBy = [ "multi-user.target" ];
+        #   before = [ "tailscale-svcs.target" ];
+        #   path = [
+        #     pkgs.kubernetes
+        #     pkgs.coreutils
+        #     pkgs.mount
+        #   ];
 
-          serviceConfig = {
-            ExecCondition = ''
-              ${pkgs.coreutils}/bin/test -f /etc/kubernetes/kubelet.conf
-            '';
-            ExecStart = ''
-              ${pkgs.kubernetes}/bin/kubelet \
-                --config=/etc/kubernetes/kubelet/config.yaml \
-                --kubeconfig=/etc/kubernetes/kubelet.conf \
-                --v=2
-            '';
-            Restart = "on-failure";
-            RestartSec = "5";
-          };
-        };
+        #   serviceConfig = {
+        #     ExecCondition = ''
+        #       ${pkgs.coreutils}/bin/test -f /etc/kubernetes/kubelet.conf
+        #     '';
+        #     ExecStart = ''
+        #       ${pkgs.kubernetes}/bin/kubelet \
+        #         --config=/etc/kubernetes/kubelet/config.yaml \
+        #         --kubeconfig=/etc/kubernetes/kubelet.conf \
+        #         --v=2
+        #     '';
+        #     Restart = "on-failure";
+        #     RestartSec = "5";
+        #   };
+        # };
       };
     })
     (lib.mkIf (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)) {

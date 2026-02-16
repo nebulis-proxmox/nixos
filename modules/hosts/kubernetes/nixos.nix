@@ -353,7 +353,7 @@ in
               };
 
               mkCalicoTyphaCert = mkCert {
-                ca = "kubernetes/pki/typha-ca";
+                ca = "/etc/kubernetes/pki/typha-ca";
                 cert = "/etc/kubernetes/pki/typha";
                 subject = {
                   CN = "calico-typha";

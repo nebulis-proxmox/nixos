@@ -46,6 +46,7 @@ in
             enableStrictShellChecks = true;
             path = [
               cfg.package
+              pkgs.util-linux
             ];
             after = [
               "tailscaled.service"
@@ -58,9 +59,19 @@ in
               RemainAfterExit = true;
             };
 
-            script = "tailscale serve --service=svc:${name} --${value.mode}=${toString value.port} ${value.target}";
+            script = ''
+              (
+                flock -w 10 9 || exit 1
+                tailscale serve --service=svc:${name} --${value.mode}=${toString value.port} ${value.target}
+              ) 9>/var/lock/tailscale-svcs.lock
+            '';
             preStop = "tailscale serve drain svc:${name} && sleep 10";
-            postStop = "tailscale serve clear svc:${name}";
+            postStop = ''
+              (
+                flock -w 10 9 || exit 1
+                tailscale serve clear svc:${name}
+              ) 9>/var/lock/tailscale-svcs.lock
+            '';
 
             wantedBy = [ "tailscale-svcs.target" ];
           })

@@ -27,7 +27,7 @@
 
       tailscale = {
         enable = true;
-        useRoutingFeatures = "server";
+        useRoutingFeatures = "both";
         extraUpFlags = [
           "--advertise-connector"
         ];

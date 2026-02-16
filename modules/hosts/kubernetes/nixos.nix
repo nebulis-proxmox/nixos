@@ -76,12 +76,7 @@ let
     done
   '';
 
-  waitForCluster = ''
-    until curl --silent --fail --insecure https://${clusterAddr}/readyz --max-time 10 >/dev/null; do
-      echo "Waiting for Kubernetes API server to be ready..."
-      sleep 1
-    done
-  '';
+  clusterTestCommand = "curl --silent --fail --insecure \"https://${clusterAddr}/readyz\" --max-time 10 >/dev/null";
 
   readModuleFile = file: builtins.readFile "${inputs.self}/modules/hosts/kubernetes/${file}";
   readManifest = manifest: readModuleFile "manifests/${manifest}";
@@ -1026,7 +1021,7 @@ in
               clusterAddr="${clusterAddr}"
               ipAddr="${ipCommand}"
 
-              if curl --silent --fail --insecure "https://$clusterAddr/livez" --max-time 10 >/dev/null; then
+              if ${clusterTestCommand}; then
               	echo "Kubernetes API server is already running, skipping initialization of cluster."
               else
               	echo "Initializing Kubernetes cluster..."
@@ -1053,7 +1048,10 @@ in
                   cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
                 ) "systemctl start tailscale-${cfg.tailscaleApiServerSvc}-svc.service"}
 
-                ${waitForCluster}
+              	until ${clusterTestCommand}; do
+              		echo "Waiting for Kubernetes API server to be ready..."
+              		sleep 1
+              	done
 
                 kubeadm init \
                   --apiserver-advertise-address="$ipAddr" \

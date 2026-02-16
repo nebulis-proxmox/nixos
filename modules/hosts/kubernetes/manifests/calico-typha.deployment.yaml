@@ -26,7 +26,7 @@ spec:
       serviceAccountName: calico-typha
       priorityClassName: system-cluster-critical
       containers:
-      - image: calico/typha:v3.31.3
+      - image: docker.io/calico/typha:v3.31.3
         name: calico-typha
         ports:
         - containerPort: 5473

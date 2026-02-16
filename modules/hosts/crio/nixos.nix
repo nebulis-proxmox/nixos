@@ -39,14 +39,10 @@ in
           '';
           mode = "0644";
         };
-        "containers/registries/00-unqualified-search-registries.conf" = {
+        "containers/registries.conf" = {
           text = ''
             unqualified-search-registries = ["docker.io"]
-          '';
-          mode = "0644";
-        };
-        "containers/registries/01-k8s-search-registries.conf" = {
-          text = ''
+            
             [[registry]]
             prefix = "registry.k8s.io"
             location = "registry.k8s.io"

@@ -1659,7 +1659,7 @@ in
               		${indent 2 calicoClusterRole}
               	EOF
 
-              	${adminKubectl} clusterrolebinding calico-cni --clusterrole=calico-cni --user=calico-cni
+              	${adminKubectl} create clusterrolebinding calico-cni --clusterrole=calico-cni --user=calico-cni
 
               	${adminKubectl} create configmap -n kube-system calico-typha-ca --from-file=/etc/kubernetes/pki/typha-ca.crt
               	${adminKubectl} create secret generic -n kube-system calico-typha-certs --from-file=/etc/kubernetes/pki/typha.key --from-file=/etc/kubernetes/pki/typha.crt

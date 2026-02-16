@@ -1041,6 +1041,10 @@ in
                   --skip-certificate-key-print \
                   --skip-token-print \
                   --skip-phases="upload-config,upload-certs,mark-control-plane,bootstrap-token,kubelet-finalize,addon,show-join-command"
+
+                ${thenOrNull (
+                  cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
+                ) "systemctl start tailscale-${cfg.tailscaleApiServerSvc}-svc.service"}
               fi
             '';
         };

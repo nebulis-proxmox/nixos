@@ -37,7 +37,7 @@ in
         targets = {
           tailscale-svcs = {
             wantedBy = [ "multi-user.target" ];
-          }
+          };
         };
 
         services = lib.mapAttrs' (

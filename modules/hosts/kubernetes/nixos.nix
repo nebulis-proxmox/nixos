@@ -234,6 +234,7 @@ in
             pkgs.systemd
             pkgs.cri-tools
             pkgs.mount
+            pkgs.util-linux
           ]
           ++ pathPackages;
           description = "Initialize Kubernetes cluster";
@@ -1043,35 +1044,36 @@ in
               fi
             '';
         };
-        # kubelet = {
-        #   description = "Kubelet";
-        #   documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
-        #   after = [
-        #     "init-kubernetes-cluster.service"
-        #   ];
-        #   requires = [ "crio.service" ];
-        #   wantedBy = [ "multi-user.target" ];
-        #   before = [ "tailscale-svcs.target" ];
-        #   path = [
-        #     pkgs.kubernetes
-        #     pkgs.coreutils
-        #     pkgs.mount
-        #   ];
+        kubelet = {
+          description = "Kubelet";
+          documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+          after = [
+            "init-kubernetes-cluster.service"
+          ];
+          requires = [ "crio.service" ];
+          wantedBy = [ "multi-user.target" ];
+          before = [ "tailscale-svcs.target" ];
+          path = [
+            pkgs.kubernetes
+            pkgs.coreutils
+            pkgs.mount
+            pkgs.util-linux
+          ];
 
-        #   serviceConfig = {
-        #     ExecCondition = ''
-        #       ${pkgs.coreutils}/bin/test -f /etc/kubernetes/kubelet.conf
-        #     '';
-        #     ExecStart = ''
-        #       ${pkgs.kubernetes}/bin/kubelet \
-        #         --config=/etc/kubernetes/kubelet/config.yaml \
-        #         --kubeconfig=/etc/kubernetes/kubelet.conf \
-        #         --v=2
-        #     '';
-        #     Restart = "on-failure";
-        #     RestartSec = "5";
-        #   };
-        # };
+          serviceConfig = {
+            ExecCondition = ''
+              ${pkgs.coreutils}/bin/test -f /etc/kubernetes/kubelet.conf
+            '';
+            ExecStart = ''
+              ${pkgs.kubernetes}/bin/kubelet \
+                --config=/etc/kubernetes/kubelet/config.yaml \
+                --kubeconfig=/etc/kubernetes/kubelet.conf \
+                --v=2
+            '';
+            Restart = "on-failure";
+            RestartSec = "5";
+          };
+        };
       };
     })
     (lib.mkIf (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)) {

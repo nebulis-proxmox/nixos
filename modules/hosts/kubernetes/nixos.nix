@@ -1015,11 +1015,8 @@ in
               ${waitForNetwork}
               ${waitForDns}
 
-              clusterHost="${clusterHost}"
               clusterAddr="${clusterAddr}"
               ipAddr="${ipCommand}"
-              etcdClusterAddr="${etcdClusterAddr}"
-              etcdClusterHost="${etcdClusterHost}"
 
               if curl --silent --fail --insecure "https://$clusterAddr/livez" --max-time 10 >/dev/null; then
               	echo "Kubernetes API server is already running, skipping initialization of cluster."

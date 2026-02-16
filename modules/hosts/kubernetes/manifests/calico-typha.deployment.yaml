@@ -48,7 +48,7 @@ spec:
             value: "true"
           # Location of the CA bundle Typha uses to authenticate calico/node; volume mount
           - name: TYPHA_CAFILE
-            value: /calico-typha-ca/typhaca.crt
+            value: /calico-typha-ca/typha-ca.crt
           # Common name on the calico/node certificate
           - name: TYPHA_CLIENTCN
             value: calico-node

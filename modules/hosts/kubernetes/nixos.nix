@@ -1039,7 +1039,8 @@ in
                   --node-name="${config.networking.hostName}" \
                   --service-dns-domain="cluster.local" \
                   --skip-certificate-key-print \
-                  --skip-token-print
+                  --skip-token-print \
+                  --skip-phases="upload-config,upload-certs,mark-control-plane,bootstrap-token,kubelet-finalize,addon,show-join-command"
               fi
             '';
         };
@@ -1086,13 +1087,6 @@ in
             mode = "tcp";
             port = 443;
             target = "127.0.0.1:${toString cfg.apiServerPort}";
-            requires = [ "kubelet.service" ];
-          };
-
-          "${cfg.tailscaleEtcdSvc}" = {
-            mode = "tcp";
-            port = 443;
-            target = "127.0.0.1:${toString cfg.etcdClientPort}";
             requires = [ "kubelet.service" ];
           };
         };

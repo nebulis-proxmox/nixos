@@ -1025,10 +1025,9 @@ in
               	echo "Initializing Kubernetes cluster..."
 
               	# Pull required images
-              	${crictl} pull registry.k8s.io/kube-apiserver:v1.34.3 # Make version consistent
-              	${crictl} pull registry.k8s.io/kube-controller-manager:v1.34.3  # Make version consistent
-              	${crictl} pull registry.k8s.io/kube-scheduler:v1.34.3  # Make version consistent
-              	${crictl} pull registry.k8s.io/etcd:3.6.5-0 # Make version consistent
+                kubeadm config images pull \
+                  --image-repository="registry.k8s.io" \
+                  --kubernetes-version="v1.34.3"
 
                 kubeadm init \
                   --apiserver-advertise-address="$ipAddr" \
@@ -1066,7 +1065,7 @@ in
             '';
             ExecStart = ''
               ${pkgs.kubernetes}/bin/kubelet \
-                --config=/etc/kubernetes/kubelet/config.yaml \
+                --config=/var/lib/kubelet/config.yaml \
                 --kubeconfig=/etc/kubernetes/kubelet.conf \
                 --v=2
             '';

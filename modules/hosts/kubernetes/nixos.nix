@@ -63,6 +63,15 @@ let
     done
   '';
 
+  waitForDns = thenOrNull (
+    cfg.mode == "tailscale"
+  ) ''
+    until [ ! -z "${tailscaleDnsCommand}" ] && [ "${tailscaleDnsCommand}" != "search" ]; do
+      echo "Waiting for Tailscale DNS suffix..."
+      sleep 1
+    done
+  '';
+
   readModuleFile = file: builtins.readFile "${inputs.self}/modules/hosts/kubernetes/${file}";
   readManifest = manifest: readModuleFile "manifests/${manifest}";
 
@@ -1558,6 +1567,7 @@ in
               ${removeTaintOnNodeFunction}
 
               ${waitForNetwork}
+              ${waitForDns}
 
               clusterAddr="${clusterAddr}"
               ipAddr="${ipCommand}"

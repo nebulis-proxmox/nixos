@@ -1045,6 +1045,19 @@ in
                 ${thenOrNull (
                   cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
                 ) "systemctl start tailscale-${cfg.tailscaleApiServerSvc}-svc.service"}
+
+                kubeadm init \
+                  --apiserver-advertise-address="$ipAddr" \
+                  --apiserver-bind-port="${toString cfg.apiServerPort}" \
+                  --cert-dir="/etc/kubernetes/pki" \
+                  --control-plane-endpoint="$clusterAddr" \
+                  --image-repository="registry.k8s.io" \
+                  --kubernetes-version="v1.34.3" \
+                  --node-name="${config.networking.hostName}" \
+                  --service-dns-domain="cluster.local" \
+                  --skip-certificate-key-print \
+                  --skip-token-print \
+                  --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start"
               fi
             '';
         };

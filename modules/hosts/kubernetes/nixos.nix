@@ -352,6 +352,15 @@ in
                 expirationDays = 365;
               };
 
+              mkCalicoTyphaCert = mkCert {
+                ca = "kubernetes/pki/typha-ca";
+                cert = "/etc/kubernetes/pki/typha";
+                subject = {
+                  CN = "calico-typha";
+                };
+                expirationDays = 365;
+              };
+
               mkKubeletKubeconfig =
                 {
                   isLocal ? false,
@@ -1530,22 +1539,10 @@ in
                 })
               );
 
-              calicoTyphaCaConfigMap = (
-                builtins.toJSON ({
-                  apiVersion = "v1";
-                  kind = "ConfigMap";
-                  metadata = {
-                    name = "calico-typha-ca";
-                    namespace = "kube-system";
-                  };
-                  data = {
-                    "ca-typha.crt" = builtins.readFile "${inputs.self}/certs/ca-typha.crt";
-                  };
-                })
-              );
-
               calicoClusterRole = readManifest "calico-cni.cluster-role.yaml";
-              calicoClusterRoleBinding = readManifest "calico-cni.cluster-role-binding.yaml";
+              calicoTyphaClusterRole = readManifest "calico-typha.cluster-role.yaml";
+              calicoTyphaDeployment = readManifest "calico-typha.deployment.yaml";
+              calicoTyphaService = readManifest "calico-typha.service.yaml";
 
               addLabelsOnNodeCall = lib.strings.concatMapStringsSep "\n" (
                 label: "addLabelOnNode \"${config.networking.hostName}\" \"${label}\""
@@ -1654,12 +1651,31 @@ in
 
               	sleep 15
 
+              	${mkCalicoTyphaCert}
+                
+              	curl "https://raw.githubusercontent.com/projectcalico/calico/v3.31.3/manifests/crds.yaml" | ${adminKubectl} apply -f -
+
               	${adminKubectl} create -f - <<-EOF
               		${indent 2 calicoClusterRole}
               	EOF
 
+              	${adminKubectl} clusterrolebinding calico-cni --clusterrole=calico-cni --user=calico-cni
+
+              	${adminKubectl} create configmap -n kube-system calico-typha-ca --from-file=/etc/kubernetes/pki/typha-ca.crt
+              	${adminKubectl} create secret generic -n kube-system calico-typha-certs --from-file=/etc/kubernetes/pki/typha.key --from-file=/etc/kubernetes/pki/typha.crt
+              	${adminKubectl} create serviceaccount -n kube-system calico-typha
               	${adminKubectl} create -f - <<-EOF
-              		${indent 2 calicoClusterRoleBinding}
+              		${indent 2 calicoTyphaClusterRole}
+              	EOF
+
+              	${adminKubectl} create clusterrolebinding calico-typha --clusterrole=calico-typha --serviceaccount=kube-system:calico-typha
+              	
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2 calicoTyphaDeployment}
+              	EOF
+
+              	${adminKubectl} create -f - <<-EOF
+              		${indent 2 calicoTyphaService}
               	EOF
 
               	${adminKubectl} create -f - <<-EOF

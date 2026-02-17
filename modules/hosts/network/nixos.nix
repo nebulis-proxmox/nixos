@@ -14,8 +14,8 @@ in
       networking.firewall = {
         enable = true;
         allowedTCPPorts = lib.mkForce [ ];
-        allowedUDPPorts = lib.mkForce [ ];
-        allowPing = false;
+        allowedUDPPorts = lib.mkForce [ (lib.mkIf config.nebulis.tailscale.enable 41641) ];
+        allowPing = true;
       };
 
       # The notion of "online" is a broken concept

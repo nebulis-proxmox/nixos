@@ -35,7 +35,7 @@ in
         port = cfg.udpListenPort;
         extraDaemonFlags = [
           "-verbose 10"
-        ]
+        ];
       };
 
       systemd = {

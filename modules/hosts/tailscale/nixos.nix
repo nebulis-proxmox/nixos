@@ -32,6 +32,10 @@ in
         ++ cfg.extraUpFlags;
         useRoutingFeatures = cfg.useRoutingFeatures;
         permitCertUid = "caddy";
+        port = cfg.udpListenPort;
+        extraDaemonFlags = [
+          "-verbose 10"
+        ]
       };
 
       systemd = {

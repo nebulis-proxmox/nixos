@@ -14,7 +14,7 @@ in
       networking.firewall = {
         enable = true;
         allowedTCPPorts = lib.mkForce [ ];
-        allowedUDPPorts = lib.mkForce [ (lib.mkIf config.nebulis.tailscale.enable 41641) ];
+        allowedUDPPorts = lib.mkForce [ (lib.mkIf config.nebulis.tailscale.enable config.nebulis.tailscale.udpListenPort) ];
         allowPing = true;
       };
 

@@ -43,7 +43,7 @@ in
     };
     acceptRoutes = mkOption {
       type = types.bool;
-      default = true;
+      default = false;
       description = ''
         enable tailscale route acceptance
       '';
@@ -109,7 +109,13 @@ in
         decrypt pre-approved ssh authkey
       '';
     };
-
+    udpListenPort = mkOption {
+      type = types.int;
+      default = 41641;
+      description = ''
+        UDP port for tailscale to listen on. This is needed to allow incoming connections when behind a symmetric NAT.
+      '';
+    };
     services = mkOption {
       description = ''
         Submodule for configuring tailscale services

@@ -41,6 +41,13 @@ in
         enable tailscale dns acceptance
       '';
     };
+    acceptRoutes = mkOption {
+      type = types.bool;
+      default = true;
+      description = ''
+        enable tailscale route acceptance
+      '';
+    };
     resetCredentials = mkOption {
       type = types.bool;
       default = true;

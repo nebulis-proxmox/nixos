@@ -22,12 +22,12 @@ in
         extraUpFlags = [
           (lib.mkIf cfg.enableSsh "--ssh=true")
           (lib.mkIf cfg.acceptDns "--accept-dns=true")
+          (lib.mkIf cfg.acceptRoutes "--accept-routes")
           (lib.mkIf cfg.resetCredentials "--reset=true")
           (
             "--advertise-tags="
             + (concatStringsSep "," (map (tag: "tag:" + tag) (cfg.tags ++ [ "nixos-managed" ])))
           )
-          "--accept-routes=true"
         ]
         ++ cfg.extraUpFlags;
         useRoutingFeatures = cfg.useRoutingFeatures;

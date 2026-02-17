@@ -20,14 +20,13 @@
 
       kubernetes = {
         enable = true;
+        mode = "tailscale";
       };
 
       tailscale = {
         enable = true;
-        useRoutingFeatures = "server";
-        extraUpFlags = [
-          "--advertise-connector"
-        ];
+        useRoutingFeatures = "both";
+        extraUpFlags = [];
       };
 
       network = {

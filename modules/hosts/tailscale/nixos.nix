@@ -27,6 +27,7 @@ in
             "--advertise-tags="
             + (concatStringsSep "," (map (tag: "tag:" + tag) (cfg.tags ++ [ "nixos-managed" ])))
           )
+          "--accept-routes=true"
         ]
         ++ cfg.extraUpFlags;
         useRoutingFeatures = cfg.useRoutingFeatures;

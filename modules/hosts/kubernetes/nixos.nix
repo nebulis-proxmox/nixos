@@ -172,6 +172,7 @@ in
       environment.systemPackages = with pkgs; [
         kubernetes
         openssl
+        slirp4netns
       ];
 
       age.secrets = {

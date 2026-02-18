@@ -172,7 +172,7 @@ in
       environment.systemPackages = with pkgs; [
         kubernetes
         openssl
-        slirp4netns
+        tcpdump
       ];
 
       age.secrets = {
@@ -1048,6 +1048,16 @@ in
                 ${thenOrNull (
                   cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
                 ) "systemctl start tailscale-${cfg.tailscaleApiServerSvc}-svc.service"}
+
+                # ONLY WITH TAILSCALE
+                # ip netns add vips0
+                # ip link add veth-default type veth peer name veth-vips0
+                # ip link set veth-vips0 netns vips0
+                # ip addr add 10.0.3.1/24 dev veth-default
+                # ip netns exec vips0 ip addr add 10.0.3.2/24 dev veth-vips0
+                # ip link set veth-default up
+                # ip netns exec vips0 ip link set veth-vips0 up
+                # ip netns exec vips0 ip route add default via 10.0.3.1
 
               	until ${clusterTestCommand}; do
               		echo "Waiting for Kubernetes API server to be ready..."

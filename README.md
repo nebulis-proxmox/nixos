@@ -38,3 +38,9 @@ curl -fsSL https://install.determinate.systems/nix | sh -s -- install --determin
 # Add a new user
 ./scripts/add_user.sh
 ```
+
+## Upgrade on host
+
+```bash
+nixos-rebuild switch --refresh --flake github:nebulis-proxmox/nixos --upgrade
+````

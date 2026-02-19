@@ -959,9 +959,10 @@ in
                 ${mkTempSuperAdminKubeconfig}
 
                 kubeadm token create --kubeconfig=/etc/kubernetes/temp.conf --print-join-command > /tmp/join-command.sh
+                sed -i '$s/$/ $@/' /tmp/join-command.sh
                 rm -f /etc/kubernetes/temp.conf
                 chmod +x /tmp/join-command.sh
-                /tmp/join-command.sh
+                /tmp/join-command.sh --ignore-preflight-errors="FileAvailable--etc-kubernetes-pki-ca.crt"
                 rm -f /tmp/join-command.sh
               else
               	echo "Initializing Kubernetes cluster..."
@@ -1026,11 +1027,12 @@ in
             pkgs.coreutils
             pkgs.mount
             pkgs.util-linux
+            pkgs.bash
           ];
 
           serviceConfig = {
             ExecCondition = ''
-              ${pkgs.coreutils}/bin/test -f /etc/kubernetes/kubelet.conf
+              ${pkgs.bash}/bin/bash -c "${pkgs.coreutils}/bin/test -f /etc/kubernetes/kubelet.conf || ${pkgs.coreutils}/bin/test -f /etc/kubernetes/bootstrap-kubelet.conf"
             '';
             ExecStart = ''
               ${pkgs.kubernetes}/bin/kubelet \

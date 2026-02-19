@@ -987,10 +987,6 @@ in
                   --skip-token-print \
                   --skip-phases="upload-config,upload-certs,mark-control-plane,bootstrap-token,kubelet-finalize,addon,show-join-command"
 
-                ${thenOrNull (
-                  cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
-                ) "systemctl start tailscale-${cfg.tailscaleApiServerSvc}-svc.service"}
-
                 ${tailscaleNetNsUpCommand}
 
               	until ${netnsWrapper} ${clusterTestCommand}; do
@@ -1013,6 +1009,10 @@ in
 
                 ${tailscaleNetNsDownCommand}
               fi
+
+              ${thenOrNull (
+                cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
+              ) "systemctl start tailscale-${cfg.tailscaleApiServerSvc}-svc.service"}
             '';
         };
         kubelet = {

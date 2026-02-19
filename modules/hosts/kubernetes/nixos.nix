@@ -49,11 +49,14 @@ let
 
   pathPackages =
     if cfg.mode == "tailscale" then
-      [ tailscaleCfg.package ]
+      [
+        tailscaleCfg.package
+        pkgs.iptables
+        pkgs.socat
+      ]
     else
       [
         pkgs.jq
-        pkgs.iproute2
       ];
 
   afterUnits =
@@ -172,7 +175,6 @@ in
       environment.systemPackages = with pkgs; [
         kubernetes
         openssl
-        tcpdump
       ];
 
       age.secrets = {
@@ -238,9 +240,7 @@ in
             pkgs.cri-tools
             pkgs.mount
             pkgs.util-linux
-            pkgs.iptables
             pkgs.iproute2
-            pkgs.socat
           ]
           ++ pathPackages;
           description = "Initialize Kubernetes cluster";
@@ -1015,46 +1015,51 @@ in
 
               crictl = "${pkgs.cri-tools}/bin/crictl";
 
-              tailscaleNetNsUpCommand = thenOrNull (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)) ''
-                tailscaleDns="${tailscaleDnsCommand}"
-                serviceIp="$(tailscale dns query "${cfg.tailscaleApiServerSvc}.$tailscaleDns" | grep ClassINET | awk '{print $5}')"
+              tailscaleNetNsUpCommand =
+                thenOrNull (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind))
+                  ''
+                    tailscaleDns="${tailscaleDnsCommand}"
+                    serviceIp="$(tailscale dns query "${cfg.tailscaleApiServerSvc}.$tailscaleDns" | grep ClassINET | awk '{print $5}')"
 
-                ip netns add vips0
-                ip link add veth-default type veth peer name veth-vips0
-                ip link set veth-vips0 netns vips0
-                ip addr add 172.31.0.1/24 dev veth-default
-                ip netns exec vips0 ip addr add 172.31.0.2/24 dev veth-vips0
-                ip link set veth-default up
-                ip netns exec vips0 ip link set veth-vips0 up
-                ip netns exec vips0 ip link set lo up
-                ip netns exec vips0 ip route add default via 172.31.0.1
-                iptables -t nat -I PREROUTING 1 -i veth-default -p tcp -d "$serviceIp" --dport 443 -j DNAT --to-destination "$ipAddr:${toString cfg.apiServerPort}"
-                iptables -I INPUT 1 -i veth-default -d "$ipAddr" -p tcp --dport ${toString cfg.apiServerPort} -j ACCEPT
+                    ip netns add vips0
+                    ip link add veth-default type veth peer name veth-vips0
+                    ip link set veth-vips0 netns vips0
+                    ip addr add 172.31.0.1/24 dev veth-default
+                    ip netns exec vips0 ip addr add 172.31.0.2/24 dev veth-vips0
+                    ip link set veth-default up
+                    ip netns exec vips0 ip link set veth-vips0 up
+                    ip netns exec vips0 ip link set lo up
+                    ip netns exec vips0 ip route add default via 172.31.0.1
+                    iptables -t nat -I PREROUTING 1 -i veth-default -p tcp -d "$serviceIp" --dport 443 -j DNAT --to-destination "$ipAddr:${toString cfg.apiServerPort}"
+                    iptables -I INPUT 1 -i veth-default -d "$ipAddr" -p tcp --dport ${toString cfg.apiServerPort} -j ACCEPT
 
-                socat tcp-connect:127.0.0.1:10248,fork,reuseaddr exec:'ip netns exec vips0 socat STDIO "tcp-listen:10248"',nofork 2>/dev/null &
-                kubeletSocatPID=$!
+                    socat tcp-connect:127.0.0.1:10248,fork,reuseaddr exec:'ip netns exec vips0 socat STDIO "tcp-listen:10248"',nofork 2>/dev/null &
+                    kubeletSocatPID=$!
 
-                socat tcp-connect:127.0.0.1:10257,fork,reuseaddr exec:'ip netns exec vips0 socat STDIO "tcp-listen:10257"',nofork 2>/dev/null &
-                controllerSocatPID=$!
-                
-                socat tcp-connect:127.0.0.1:10259,fork,reuseaddr exec:'ip netns exec vips0 socat STDIO "tcp-listen:10259"',nofork 2>/dev/null &
-                schedulerSocatPID=$!
-              '';
+                    socat tcp-connect:127.0.0.1:10257,fork,reuseaddr exec:'ip netns exec vips0 socat STDIO "tcp-listen:10257"',nofork 2>/dev/null &
+                    controllerSocatPID=$!
 
-              tailscaleNetNsDownCommand = thenOrNull (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)) ''
-                kill -2 $kubeletSocatPID
-                kill -2 $controllerSocatPID
-                kill -2 $schedulerSocatPID
+                    socat tcp-connect:127.0.0.1:10259,fork,reuseaddr exec:'ip netns exec vips0 socat STDIO "tcp-listen:10259"',nofork 2>/dev/null &
+                    schedulerSocatPID=$!
+                  '';
 
-                iptables -t nat -D PREROUTING -i veth-default -p tcp -d "$serviceIp" --dport 443 -j DNAT --to-destination "$ipAddr:${toString cfg.apiServerPort}"
-                iptables -D INPUT -i veth-default -d "$ipAddr" -p tcp --dport ${toString cfg.apiServerPort} -j ACCEPT
-                ip link set veth-default down
-                ip link set veth-vips0 down
-                ip link del veth-default
-                ip netns del vips0
-              '';
+              tailscaleNetNsDownCommand =
+                thenOrNull (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind))
+                  ''
+                    kill -2 $kubeletSocatPID
+                    kill -2 $controllerSocatPID
+                    kill -2 $schedulerSocatPID
 
-              netnsWrapper = thenOrNull (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)) "ip netns exec vips0";
+                    iptables -t nat -D PREROUTING -i veth-default -p tcp -d "$serviceIp" --dport 443 -j DNAT --to-destination "$ipAddr:${toString cfg.apiServerPort}"
+                    iptables -D INPUT -i veth-default -d "$ipAddr" -p tcp --dport ${toString cfg.apiServerPort} -j ACCEPT
+                    ip link set veth-default down
+                    ip link del veth-default
+                    ip netns del vips0
+                  '';
+
+              netnsWrapper = thenOrNull (
+                cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
+              ) "ip netns exec vips0";
             in
             ''
               ${mkCertFunction}

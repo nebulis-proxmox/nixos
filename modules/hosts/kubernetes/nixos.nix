@@ -453,7 +453,7 @@ in
 
               	${netnsWrapper} ${adminKubectl} apply -f - <<-EOF
               		${indent 2 calicoTyphaClusterRole}
-              	EOF  
+              	EOF
 
                 ${netnsWrapper} ${adminKubectl} create clusterrolebinding calico-typha --clusterrole=calico-typha --serviceaccount=kube-system:calico-typha
 

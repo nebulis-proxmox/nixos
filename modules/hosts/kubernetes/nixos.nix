@@ -963,7 +963,7 @@ in
                 rm -f /etc/kubernetes/temp.conf
                 chmod +x /tmp/join-command.sh
                 /tmp/join-command.sh \
-                  ${thenOrNull (builtins.elem "control-plane" cfg.kind) "--control-plane"} \
+                  ${thenOrNull (builtins.elem "control-plane" cfg.kind) "--control-plane --apiserver-advertise-address=\"$ipAddr\" --apiserver-bind-port=\"${toString cfg.apiServerPort}\" \\"}
                   --ignore-preflight-errors="FileAvailable--etc-kubernetes-pki-ca.crt"
                 rm -f /tmp/join-command.sh
               else

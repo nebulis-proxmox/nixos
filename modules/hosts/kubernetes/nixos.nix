@@ -238,6 +238,8 @@ in
             pkgs.cri-tools
             pkgs.mount
             pkgs.util-linux
+            pkgs.iptables
+            pkgs.iproute2
           ]
           ++ pathPackages;
           description = "Initialize Kubernetes cluster";
@@ -1011,6 +1013,24 @@ in
               ];
 
               crictl = "${pkgs.cri-tools}/bin/crictl";
+
+              tailscaleNetNsUpCommand = thenOrNull (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)) ''
+                tailscaleDns="${tailscaleDnsCommand}"
+                serviceIp="$(tailscale dns query "${cfg.tailscaleApiServerSvc}.$tailscaleDns" | grep ClassINET | awk '{print $5}')"
+
+                ip netns add vips0
+                ip link add veth-default type veth peer name veth-vips0
+                ip link set veth-vips0 netns vips0
+                ip addr add 172.31.0.1/24 dev veth-default
+                ip netns exec vips0 ip addr add 172.31.0.2/24 dev veth-vips0
+                ip link set veth-default up
+                ip netns exec vips0 ip link set veth-vips0 up
+                ip netns exec vips0 ip route add default via 172.31.0.1
+                iptables -t nat -I PREROUTING 1 -i veth-default -p tcp -d "$serviceIp" --dport 443 -j DNAT --to-destination "$ipAddr:${toString cfg.apiServerPort}"
+                iptables -I INPUT 1 -i veth-default -d "$ipAddr" -p tcp --dport ${toString cfg.apiServerPort} -j ACCEPT
+              '';
+
+              netnsWrapper = thenOrNull (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)) "ip netns exec vips0";
             in
             ''
               ${mkCertFunction}
@@ -1049,22 +1069,14 @@ in
                   cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
                 ) "systemctl start tailscale-${cfg.tailscaleApiServerSvc}-svc.service"}
 
-                # ONLY WITH TAILSCALE
-                # ip netns add vips0
-                # ip link add veth-default type veth peer name veth-vips0
-                # ip link set veth-vips0 netns vips0
-                # ip addr add 10.0.3.1/24 dev veth-default
-                # ip netns exec vips0 ip addr add 10.0.3.2/24 dev veth-vips0
-                # ip link set veth-default up
-                # ip netns exec vips0 ip link set veth-vips0 up
-                # ip netns exec vips0 ip route add default via 10.0.3.1
+                ${tailscaleNetNsUpCommand}
 
-              	until ${clusterTestCommand}; do
+              	until ${netnsWrapper} ${clusterTestCommand}; do
               		echo "Waiting for Kubernetes API server to be ready..."
               		sleep 1
               	done
 
-                kubeadm init \
+                ${netnsWrapper} kubeadm init \
                   --apiserver-advertise-address="$ipAddr" \
                   --apiserver-bind-port="${toString cfg.apiServerPort}" \
                   --cert-dir="/etc/kubernetes/pki" \

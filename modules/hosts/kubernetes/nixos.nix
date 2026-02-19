@@ -962,7 +962,9 @@ in
                 sed -i '$s/$/ $@/' /tmp/join-command.sh
                 rm -f /etc/kubernetes/temp.conf
                 chmod +x /tmp/join-command.sh
-                /tmp/join-command.sh --ignore-preflight-errors="FileAvailable--etc-kubernetes-pki-ca.crt"
+                /tmp/join-command.sh \
+                  ${thenOrNull (builtins.elem "control-plane" cfg.kind) "--control-plane"} \
+                  --ignore-preflight-errors="FileAvailable--etc-kubernetes-pki-ca.crt"
                 rm -f /tmp/join-command.sh
               else
               	echo "Initializing Kubernetes cluster..."

@@ -1038,6 +1038,7 @@ in
               ${pkgs.kubernetes}/bin/kubelet \
                 --config=/var/lib/kubelet/config.yaml \
                 --kubeconfig=/etc/kubernetes/kubelet.conf \
+                --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf \
                 --v=2
             '';
             Restart = "on-failure";

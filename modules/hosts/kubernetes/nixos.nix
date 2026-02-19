@@ -240,6 +240,7 @@ in
             pkgs.util-linux
             pkgs.iptables
             pkgs.iproute2
+            pkgs.socat
           ]
           ++ pathPackages;
           description = "Initialize Kubernetes cluster";
@@ -1028,6 +1029,14 @@ in
                 ip netns exec vips0 ip route add default via 172.31.0.1
                 iptables -t nat -I PREROUTING 1 -i veth-default -p tcp -d "$serviceIp" --dport 443 -j DNAT --to-destination "$ipAddr:${toString cfg.apiServerPort}"
                 iptables -I INPUT 1 -i veth-default -d "$ipAddr" -p tcp --dport ${toString cfg.apiServerPort} -j ACCEPT
+                iptables -I INPUT 1 -i veth-default -d "127.0.0.1" -j ACCEPT
+
+                socat tcp-connect:127.0.0.1:10248,fork,reuseaddr exec:'ip netns exec vips0 socat STDIO "tcp-listen:10248"',nofork 2>/dev/null &
+                socatPID=$!
+              '';
+
+              tailscaleNetNsDownCommand = thenOrNull (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)) ''
+                kill -2 $socatPID
               '';
 
               netnsWrapper = thenOrNull (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)) "ip netns exec vips0";
@@ -1088,6 +1097,8 @@ in
                   --skip-certificate-key-print \
                   --skip-token-print \
                   --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start"
+
+                ${tailscaleNetNsDownCommand}
               fi
             '';
         };

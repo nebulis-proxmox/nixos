@@ -251,111 +251,6 @@ in
 
           script =
             let
-              mkApiServerCert = mkCert {
-                ca = "/etc/kubernetes/pki/ca";
-                cert = "/etc/kubernetes/pki/apiserver";
-                subject = {
-                  CN = "kube-apiserver";
-                };
-                altNames = {
-                  IP = [
-                    "10.96.0.1"
-                    "$ipAddr"
-                  ];
-                  DNS = [
-                    "kubernetes"
-                    "kubernetes.default"
-                    "kubernetes.default.svc"
-                    "kubernetes.default.svc.cluster.local"
-                    (thenOrNull (tailscaleDnsCommand != null) "$clusterHost")
-                    (thenOrNull (cfg.mode == "tailscale") cfg.tailscaleApiServerSvc)
-                    config.networking.hostName
-                  ];
-                };
-                expirationDays = 365;
-              };
-
-              mkKubeletClientCert = mkCert {
-                ca = "/etc/kubernetes/pki/ca";
-                cert = "/etc/kubernetes/pki/apiserver-kubelet-client";
-                subject = {
-                  CN = "kube-apiserver-kubelet-client";
-                  O = "kubeadm:cluster-admins";
-                };
-                expirationDays = 365;
-              };
-
-              mkFrontProxyClientCert = mkCert {
-                ca = "/etc/kubernetes/pki/front-proxy-ca";
-                cert = "/etc/kubernetes/pki/front-proxy-client";
-                subject = {
-                  CN = "front-proxy-client";
-                };
-                expirationDays = 365;
-              };
-
-              mkEtcdServerCert = mkCert {
-                ca = "/etc/kubernetes/pki/etcd/ca";
-                cert = "/etc/kubernetes/pki/etcd/server";
-                subject = {
-                  CN = config.networking.hostName;
-                };
-                altNames = {
-                  IP = [
-                    "$ipAddr"
-                    "127.0.0.1"
-                    "::1"
-                  ];
-                  DNS = [
-                    (thenOrNull (tailscaleDnsCommand != null) "$etcdClusterHost")
-                    (thenOrNull (cfg.mode == "tailscale") cfg.tailscaleEtcdSvc)
-                    config.networking.hostName
-                    "localhost"
-                  ];
-                };
-                expirationDays = 365;
-              };
-
-              mkEtcdPeerCert = mkCert {
-                ca = "/etc/kubernetes/pki/etcd/ca";
-                cert = "/etc/kubernetes/pki/etcd/peer";
-                subject = {
-                  CN = config.networking.hostName;
-                };
-                altNames = {
-                  IP = [
-                    "$ipAddr"
-                    "127.0.0.1"
-                    "::1"
-                  ];
-                  DNS = [
-                    (thenOrNull (tailscaleDnsCommand != null) "$etcdClusterAddr")
-                    (thenOrNull (cfg.mode == "tailscale") cfg.tailscaleEtcdSvc)
-                    config.networking.hostName
-                    "localhost"
-                  ];
-                };
-                expirationDays = 365;
-              };
-
-              mkEtcdHealthcheckClientCert = mkCert {
-                ca = "/etc/kubernetes/pki/etcd/ca";
-                cert = "/etc/kubernetes/pki/etcd/healthcheck-client";
-                subject = {
-                  CN = "kube-etcd-healthcheck-client";
-                };
-                expirationDays = 365;
-              };
-
-              mkEtcdApiServerClientCert = mkCert {
-                ca = "/etc/kubernetes/pki/etcd/ca";
-                cert = "/etc/kubernetes/pki/apiserver-etcd-client";
-                subject = {
-                  CN = "kube-apiserver-etcd-client";
-                };
-                expirationDays = 365;
-              };
-
               mkCalicoTyphaCert = mkCert {
                 ca = "/etc/kubernetes/pki/typha-ca";
                 cert = "/etc/kubernetes/pki/typha";
@@ -365,31 +260,14 @@ in
                 expirationDays = 365;
               };
 
-              mkKubeletKubeconfig =
-                {
-                  isLocal ? false,
-                }:
-                mkKubeconfig {
-                  ca = "/etc/kubernetes/pki/ca";
-                  kubeconfig = "/etc/kubernetes/kubelet.conf";
-                  username = "system:node:${config.networking.hostName}";
-                  group = "system:nodes";
-                  expirationDays = 1;
-                  isLocal = isLocal;
-                };
-
-              mkSuperAdminKubeconfig =
-                {
-                  isLocal ? false,
-                }:
-                mkKubeconfig {
-                  ca = "/etc/kubernetes/pki/ca";
-                  kubeconfig = "/etc/kubernetes/admin.conf";
-                  username = "kubernetes-super-admin";
-                  group = "system:masters";
-                  expirationDays = 1;
-                  isLocal = isLocal;
-                };
+              mkTempSuperAdminKubeconfig = mkKubeconfig {
+                ca = "/etc/kubernetes/pki/ca";
+                kubeconfig = "/etc/kubernetes/temp.conf";
+                username = "kubernetes-super-admin";
+                group = "system:masters";
+                expirationDays = 1;
+                isLocal = false;
+              };
 
               mkControllerManagerKubeconfig = mkKubeconfig {
                 ca = "/etc/kubernetes/pki/ca";
@@ -1071,8 +949,20 @@ in
               clusterAddr="${clusterAddr}"
               ipAddr="${ipCommand}"
 
+              ${thenOrNull (
+                cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
+              ) "systemctl stop tailscale-${cfg.tailscaleApiServerSvc}-svc.service  || true"}
+
               if ${clusterTestCommand}; then
               	echo "Kubernetes API server is already running, skipping initialization of cluster."
+
+                ${mkTempSuperAdminKubeconfig}
+
+                kubeadm token create --kubeconfig=/etc/kubernetes/admin.conf --print-join-command > /tmp/join-command.sh
+                rm -f /etc/kubernetes/admin.conf
+                chmod +x /tmp/join-command.sh
+                /tmp/join-command.sh
+                rm -f /tmp/join-command.sh
               else
               	echo "Initializing Kubernetes cluster..."
 

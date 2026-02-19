@@ -425,7 +425,7 @@ in
               ) "systemctl start tailscale-${cfg.tailscaleApiServerSvc}-svc.service"}
 
               ${adminKubectl} apply -f - <<-EOF
-              	${ident 1 nodeIpPool}
+              	${indent 1 nodeIpPool}
               EOF
             '';
         };

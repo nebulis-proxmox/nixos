@@ -958,8 +958,8 @@ in
 
                 ${mkTempSuperAdminKubeconfig}
 
-                kubeadm token create --kubeconfig=/etc/kubernetes/admin.conf --print-join-command > /tmp/join-command.sh
-                rm -f /etc/kubernetes/admin.conf
+                kubeadm token create --kubeconfig=/etc/kubernetes/temp.conf --print-join-command > /tmp/join-command.sh
+                rm -f /etc/kubernetes/temp.conf
                 chmod +x /tmp/join-command.sh
                 /tmp/join-command.sh
                 rm -f /tmp/join-command.sh

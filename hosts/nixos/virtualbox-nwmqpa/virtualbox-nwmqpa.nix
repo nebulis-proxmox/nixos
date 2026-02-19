@@ -21,6 +21,7 @@
       kubernetes = {
         enable = true;
         mode = "tailscale";
+        nodeIndex = 1;
       };
 
       tailscale = {

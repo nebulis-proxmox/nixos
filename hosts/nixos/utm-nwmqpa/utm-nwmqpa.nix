@@ -23,12 +23,13 @@
       kubernetes = {
         enable = true;
         mode = "tailscale";
+        nodeIndex = 0;
       };
 
       tailscale = {
         enable = true;
         useRoutingFeatures = "both";
-        extraUpFlags = [];
+        extraUpFlags = [ ];
       };
 
       network = {

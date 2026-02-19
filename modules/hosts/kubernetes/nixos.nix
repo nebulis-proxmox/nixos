@@ -251,15 +251,6 @@ in
 
           script =
             let
-              mkCalicoTyphaCert = mkCert {
-                ca = "/etc/kubernetes/pki/typha-ca";
-                cert = "/etc/kubernetes/pki/typha";
-                subject = {
-                  CN = "calico-typha";
-                };
-                expirationDays = 365;
-              };
-
               mkTempSuperAdminKubeconfig = mkKubeconfig {
                 ca = "/etc/kubernetes/pki/ca";
                 kubeconfig = "/etc/kubernetes/temp.conf";
@@ -269,20 +260,28 @@ in
                 isLocal = false;
               };
 
-              mkControllerManagerKubeconfig = mkKubeconfig {
-                ca = "/etc/kubernetes/pki/ca";
-                kubeconfig = "/etc/kubernetes/controller-manager.conf";
-                username = "system:kube-controller-manager";
-                expirationDays = 365;
-                isLocal = true;
+              nodeIpPool = builtins.toJSON {
+                apiVersion = "crd.projectcalico.org/v1";
+                kind = "IPPool";
+                metadata = {
+                  name = "${config.networking.hostName}-ippool";
+                };
+                spec = {
+                  cidr = "10.96.${toString cfg.nodeIndex}.0/24";
+                  ipipMode = "Never";
+                  natOutgoing = true;
+                  disabled = false;
+                  nodeSelector = "kubernetes.io/hostname == \"${config.networking.hostName}\"";
+                };
               };
 
-              mkSchedulerKubeconfig = mkKubeconfig {
-                ca = "/etc/kubernetes/pki/ca";
-                kubeconfig = "/etc/kubernetes/scheduler.conf";
-                username = "system:kube-scheduler";
+              mkCalicoTyphaCert = mkCert {
+                ca = "/etc/kubernetes/pki/typha-ca";
+                cert = "/etc/kubernetes/pki/typha";
+                subject = {
+                  CN = "calico-typha";
+                };
                 expirationDays = 365;
-                isLocal = true;
               };
 
               mkCalicoKubeconfig = mkKubeconfig {
@@ -293,605 +292,10 @@ in
                 isLocal = true;
               };
 
-              coreDnsConfigMap = builtins.toJSON ({
-                apiVersion = "v1";
-                kind = "ConfigMap";
-                metadata = {
-                  name = "coredns";
-                  namespace = "kube-system";
-                };
-                data = {
-                  Corefile = ''
-                    .:53 {
-                      errors
-                      health {
-                        lameduck 5s
-                      }
-                      ready
-                      kubernetes cluster.local in-addr.arpa ip6.arpa {
-                        pods insecure
-                        fallthrough in-addr.arpa ip6.arpa
-                        ttl 30
-                      }
-                      prometheus :9153
-                      forward . /etc/resolv.conf {
-                        max_concurrent 1000
-                      }
-                      cache 30 {
-                        disable success cluster.local
-                        disable denial cluster.local
-                      }
-                      loop
-                      reload
-                      loadbalance
-                    }
-                  '';
-                };
-              });
-
-              coreDnsRoleBinding = builtins.toJSON ({
-                apiVersion = "rbac.authorization.k8s.io/v1";
-                kind = "ClusterRoleBinding";
-                metadata = {
-                  name = "system:coredns";
-                };
-                roleRef = {
-                  apiGroup = "rbac.authorization.k8s.io";
-                  kind = "ClusterRole";
-                  name = "system:coredns";
-                };
-                subjects = [
-                  {
-                    kind = "ServiceAccount";
-                    name = "coredns";
-                    namespace = "kube-system";
-                  }
-                ];
-              });
-
-              coreDnsServiceAccount = builtins.toJSON ({
-                apiVersion = "v1";
-                kind = "ServiceAccount";
-                metadata = {
-                  name = "coredns";
-                  namespace = "kube-system";
-                };
-              });
-
-              coreDnsDeployment = builtins.toJSON ({
-                apiVersion = "apps/v1";
-                kind = "Deployment";
-                metadata = {
-                  labels = {
-                    "k8s-app" = "kube-dns";
-                  };
-                  name = "coredns";
-                  namespace = "kube-system";
-                };
-                spec = {
-                  replicas = 2;
-                  selector = {
-                    matchLabels = {
-                      "k8s-app" = "kube-dns";
-                    };
-                  };
-                  strategy = {
-                    rollingUpdate = {
-                      maxUnavailable = 1;
-                    };
-                    type = "RollingUpdate";
-                  };
-                  template = {
-                    metadata = {
-                      labels = {
-                        "k8s-app" = "kube-dns";
-                      };
-                    };
-                    spec = {
-                      affinity = {
-                        podAntiAffinity = {
-                          preferredDuringSchedulingIgnoredDuringExecution = [
-                            {
-                              podAffinityTerm = {
-                                labelSelector = {
-                                  matchExpressions = [
-                                    {
-                                      key = "k8s-app";
-                                      operator = "In";
-                                      values = [ "kube-dns" ];
-                                    }
-                                  ];
-                                };
-                                topologyKey = "kubernetes.io/hostname";
-                              };
-                              weight = 100;
-                            }
-                          ];
-                        };
-                      };
-                      containers = [
-                        {
-                          args = [
-                            "-conf"
-                            "/etc/coredns/Corefile"
-                          ];
-                          image = "registry.k8s.io/coredns/coredns:v1.12.1";
-                          imagePullPolicy = "IfNotPresent";
-                          livenessProbe = {
-                            failureThreshold = 5;
-                            httpGet = {
-                              path = "/health";
-                              port = "liveness-probe";
-                              scheme = "HTTP";
-                            };
-                            initialDelaySeconds = 60;
-                            successThreshold = 1;
-                            timeoutSeconds = 5;
-                          };
-                          name = "coredns";
-                          ports = [
-                            {
-                              containerPort = 53;
-                              name = "dns";
-                              protocol = "UDP";
-                            }
-                            {
-                              containerPort = 53;
-                              name = "dns-tcp";
-                              protocol = "TCP";
-                            }
-                            {
-                              containerPort = 9153;
-                              name = "metrics";
-                              protocol = "TCP";
-                            }
-                            {
-                              containerPort = 8080;
-                              name = "liveness-probe";
-                              protocol = "TCP";
-                            }
-                            {
-                              containerPort = 8181;
-                              name = "readiness-probe";
-                              protocol = "TCP";
-                            }
-                          ];
-                          readinessProbe = {
-                            httpGet = {
-                              path = "/ready";
-                              port = "readiness-probe";
-                              scheme = "HTTP";
-                            };
-                          };
-                          resources = {
-                            limits = {
-                              memory = "170Mi";
-                            };
-                            requests = {
-                              cpu = "100m";
-                              memory = "70Mi";
-                            };
-                          };
-                          securityContext = {
-                            allowPrivilegeEscalation = false;
-                            capabilities = {
-                              add = [ "NET_BIND_SERVICE" ];
-                              drop = [ "ALL" ];
-                            };
-                            readOnlyRootFilesystem = true;
-                          };
-                          volumeMounts = [
-                            {
-                              mountPath = "/etc/coredns";
-                              name = "config-volume";
-                              readOnly = true;
-                            }
-                          ];
-                        }
-                      ];
-                      dnsPolicy = "Default";
-                      nodeSelector = {
-                        "kubernetes.io/os" = "linux";
-                      };
-                      priorityClassName = "system-cluster-critical";
-                      serviceAccountName = "coredns";
-                      tolerations = [
-                        {
-                          key = "CriticalAddonsOnly";
-                          operator = "Exists";
-                        }
-                        {
-                          effect = "NoSchedule";
-                          key = "node-role.kubernetes.io/control-plane";
-                        }
-                      ];
-                      volumes = [
-                        {
-                          configMap = {
-                            items = [
-                              {
-                                key = "Corefile";
-                                path = "Corefile";
-                              }
-                            ];
-                            name = "coredns";
-                          };
-                          name = "config-volume";
-                        }
-                      ];
-                    };
-                  };
-                };
-                status = { };
-              });
-
-              coreDnsService = builtins.toJSON ({
-                apiVersion = "v1";
-                kind = "Service";
-                metadata = {
-                  annotations = {
-                    "prometheus.io/port" = "9153";
-                    "prometheus.io/scrape" = "true";
-                  };
-                  labels = {
-                    "k8s-app" = "kube-dns";
-                    "kubernetes.io/cluster-service" = "true";
-                    "kubernetes.io/name" = "CoreDNS";
-                  };
-                  name = "kube-dns";
-                  namespace = "kube-system";
-                  resourceVersion = "0";
-                };
-                spec = {
-                  clusterIP = "10.96.0.10";
-                  ports = [
-                    {
-                      name = "dns";
-                      port = 53;
-                      protocol = "UDP";
-                      targetPort = 53;
-                    }
-                    {
-                      name = "dns-tcp";
-                      port = 53;
-                      protocol = "TCP";
-                      targetPort = 53;
-                    }
-                    {
-                      name = "metrics";
-                      port = 9153;
-                      protocol = "TCP";
-                      targetPort = 9153;
-                    }
-                  ];
-                  selector = {
-                    "k8s-app" = "kube-dns";
-                  };
-                };
-                status = {
-                  loadBalancer = { };
-                };
-              });
-
-              kubeProxyConfig = ''
-                apiVersion: kubeproxy.config.k8s.io/v1alpha1
-                bindAddress: 0.0.0.0
-                bindAddressHardFail: false
-                clientConnection:
-                  acceptContentTypes: ""
-                  burst: 0
-                  contentType: ""
-                  kubeconfig: /var/lib/kube-proxy/kubeconfig.conf
-                  qps: 0
-                clusterCIDR: ""
-                configSyncPeriod: 0s
-                conntrack:
-                  maxPerCore: null
-                  min: null
-                  tcpBeLiberal: false
-                  tcpCloseWaitTimeout: null
-                  tcpEstablishedTimeout: null
-                  udpStreamTimeout: 0s
-                  udpTimeout: 0s
-                detectLocal:
-                  bridgeInterface: ""
-                  interfaceNamePrefix: ""
-                detectLocalMode: ""
-                enableProfiling: false
-                healthzBindAddress: ""
-                hostnameOverride: ""
-                iptables:
-                  localhostNodePorts: null
-                  masqueradeAll: false
-                  masqueradeBit: null
-                  minSyncPeriod: 0s
-                  syncPeriod: 0s
-                ipvs:
-                  excludeCIDRs: null
-                  minSyncPeriod: 0s
-                  scheduler: ""
-                  strictARP: false
-                  syncPeriod: 0s
-                  tcpFinTimeout: 0s
-                  tcpTimeout: 0s
-                  udpTimeout: 0s
-                kind: KubeProxyConfiguration
-                logging:
-                  flushFrequency: 0
-                  options:
-                    json:
-                      infoBufferSize: "0"
-                    text:
-                      infoBufferSize: "0"
-                  verbosity: 0
-                metricsBindAddress: ""
-                mode: ""
-                nftables:
-                  masqueradeAll: false
-                  masqueradeBit: null
-                  minSyncPeriod: 0s
-                  syncPeriod: 0s
-                nodePortAddresses: null
-                oomScoreAdj: null
-                portRange: ""
-                showHiddenMetricsForVersion: ""
-                winkernel:
-                  enableDSR: false
-                  forwardHealthCheckVip: false
-                  networkName: ""
-                  rootHnsEndpointName: ""
-                  sourceVip: ""
-              '';
-
-              kubeProxyKubeconfig = ''
-                apiVersion: v1
-                kind: Config
-                clusters:
-                - cluster:
-                    certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-                    server: https://$clusterAddr
-                  name: default
-                contexts:
-                - context:
-                    cluster: default
-                    namespace: default
-                    user: default
-                  name: default
-                current-context: default
-                users:
-                - name: default
-                  user:
-                    tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
-              '';
-
-              kubeProxyConfigMap = (
-                builtins.toJSON ({
-                  apiVersion = "v1";
-                  kind = "ConfigMap";
-                  metadata = {
-                    name = "kube-proxy";
-                    namespace = "kube-system";
-                    annotations = {
-                      "kubeadm.kubernetes.io/component-config.hash" = "sha256:${
-                        builtins.hashString "sha256" (kubeProxyConfig + kubeProxyKubeconfig)
-                      }";
-                    };
-                    labels = {
-                      app = "kube-proxy";
-                    };
-                  };
-                  data = {
-                    "config.conf" = kubeProxyConfig;
-                    "kubeconfig.conf" = kubeProxyKubeconfig;
-                  };
-                })
-              );
-
-              kubeProxyDaemonSet = lib.escape [ "$(" ] (
-                builtins.toJSON ({
-                  apiVersion = "apps/v1";
-                  kind = "DaemonSet";
-                  metadata = {
-                    labels = {
-                      "k8s-app" = "kube-proxy";
-                    };
-                    name = "kube-proxy";
-                    namespace = "kube-system";
-                  };
-                  spec = {
-                    selector = {
-                      matchLabels = {
-                        "k8s-app" = "kube-proxy";
-                      };
-                    };
-                    template = {
-                      metadata = {
-                        labels = {
-                          "k8s-app" = "kube-proxy";
-                        };
-                      };
-                      spec = {
-                        containers = [
-                          {
-                            command = [
-                              "/usr/local/bin/kube-proxy"
-                              "--config=/var/lib/kube-proxy/config.conf"
-                              "--hostname-override=$(NODE_NAME)"
-                            ];
-                            env = [
-                              {
-                                name = "NODE_NAME";
-                                valueFrom = {
-                                  fieldRef = {
-                                    fieldPath = "spec.nodeName";
-                                  };
-                                };
-                              }
-                            ];
-                            image = "registry.k8s.io/kube-proxy:v1.34.3";
-                            imagePullPolicy = "IfNotPresent";
-                            name = "kube-proxy";
-                            resources = { };
-                            securityContext = {
-                              privileged = true;
-                            };
-                            volumeMounts = [
-                              {
-                                mountPath = "/var/lib/kube-proxy";
-                                name = "kube-proxy";
-                              }
-                              {
-                                mountPath = "/run/xtables.lock";
-                                name = "xtables-lock";
-                              }
-                              {
-                                mountPath = "/lib/modules";
-                                name = "lib-modules";
-                                readOnly = true;
-                              }
-                            ];
-                          }
-                        ];
-                        hostNetwork = true;
-                        nodeSelector = {
-                          "kubernetes.io/os" = "linux";
-                        };
-                        priorityClassName = "system-node-critical";
-                        serviceAccountName = "kube-proxy";
-                        tolerations = [
-                          {
-                            operator = "Exists";
-                          }
-                        ];
-                        volumes = [
-                          {
-                            configMap = {
-                              name = "kube-proxy";
-                            };
-                            name = "kube-proxy";
-                          }
-                          {
-                            hostPath = {
-                              path = "/run/xtables.lock";
-                              type = "FileOrCreate";
-                            };
-                            name = "xtables-lock";
-                          }
-                          {
-                            hostPath = {
-                              path = "/lib/modules";
-                            };
-                            name = "lib-modules";
-                          }
-                        ];
-                      };
-                    };
-                    updateStrategy = {
-                      type = "RollingUpdate";
-                    };
-                  };
-                  status = {
-                    currentNumberScheduled = 0;
-                    desiredNumberScheduled = 0;
-                    numberMisscheduled = 0;
-                    numberReady = 0;
-                  };
-                })
-              );
-
-              kubeProxyServiceAccount = lib.escape [ "$" ] (
-                builtins.toJSON ({
-                  apiVersion = "v1";
-                  kind = "ServiceAccount";
-                  metadata = {
-                    name = "kube-proxy";
-                    namespace = "kube-system";
-                  };
-                })
-              );
-
-              kubeProxyRoleBinding = lib.escape [ "$" ] (
-                builtins.toJSON ({
-                  apiVersion = "rbac.authorization.k8s.io/v1";
-                  kind = "ClusterRoleBinding";
-                  metadata = {
-                    name = "kube-proxy";
-                  };
-                  roleRef = {
-                    apiGroup = "rbac.authorization.k8s.io";
-                    kind = "ClusterRole";
-                    name = "system:node-proxier";
-                  };
-                  subjects = [
-                    {
-                      kind = "ServiceAccount";
-                      name = "kube-proxy";
-                      namespace = "kube-system";
-                    }
-                  ];
-                })
-              );
-
-              kubeProxyRole = lib.escape [ "$" ] (
-                builtins.toJSON ({
-                  apiVersion = "rbac.authorization.k8s.io/v1";
-                  kind = "Role";
-                  metadata = {
-                    name = "kube-proxy";
-                  };
-                  rules = [
-                    {
-                      apiGroups = [ "" ];
-                      resourceNames = [ "kube-proxy" ];
-                      resources = [ "configmaps" ];
-                      verbs = [ "get" ];
-                    }
-                  ];
-                })
-              );
-
-              kubeProxyRoleBindingNode = lib.escape [ "$" ] (
-                builtins.toJSON ({
-                  apiVersion = "rbac.authorization.k8s.io/v1";
-                  kind = "RoleBinding";
-                  metadata = {
-                    name = "kube-proxy";
-                    namespace = "kube-system";
-                  };
-                  roleRef = {
-                    apiGroup = "rbac.authorization.k8s.io";
-                    kind = "Role";
-                    name = "kube-proxy";
-                  };
-                  subjects = [
-                    {
-                      kind = "Group";
-                      name = "system:nodes";
-                    }
-                    {
-                      kind = "Group";
-                      name = "system:bootstrappers:kubeadm:default-node-token";
-                    }
-                  ];
-                })
-              );
-
               calicoClusterRole = readManifest "calico-cni.cluster-role.yaml";
               calicoTyphaClusterRole = readManifest "calico-typha.cluster-role.yaml";
               calicoTyphaDeployment = readManifest "calico-typha.deployment.yaml";
               calicoTyphaService = readManifest "calico-typha.service.yaml";
-
-              apiServerCertExtraSans = [
-                "kubernetes"
-                "kubernetes.default"
-                "kubernetes.default.svc"
-                "kubernetes.default.svc.cluster.local"
-                (thenOrNull (tailscaleDnsCommand != null) "$clusterHost")
-                (thenOrNull (cfg.mode == "tailscale") cfg.tailscaleApiServerSvc)
-                config.networking.hostName
-              ];
-
-              crictl = "${pkgs.cri-tools}/bin/crictl";
 
               tailscaleNetNsUpCommand =
                 thenOrNull (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind))
@@ -966,6 +370,8 @@ in
                   ${thenOrNull (builtins.elem "control-plane" cfg.kind) "--control-plane --apiserver-advertise-address=\"$ipAddr\" --apiserver-bind-port=\"${toString cfg.apiServerPort}\" \\"}
                   --ignore-preflight-errors="FileAvailable--etc-kubernetes-pki-ca.crt"
                 rm -f /tmp/join-command.sh
+
+                ${adminKubectl} -n kube-system rollout restart deployment coredns
               else
               	echo "Initializing Kubernetes cluster..."
 
@@ -983,6 +389,7 @@ in
                   --kubernetes-version="v1.34.3" \
                   --node-name="${config.networking.hostName}" \
                   --service-dns-domain="cluster.local" \
+                  --pod-network-cidr="${cfg.clusterIpRange}" \
                   --skip-certificate-key-print \
                   --skip-token-print \
                   --skip-phases="upload-config,upload-certs,mark-control-plane,bootstrap-token,kubelet-finalize,addon,show-join-command"
@@ -1003,16 +410,23 @@ in
                   --kubernetes-version="v1.34.3" \
                   --node-name="${config.networking.hostName}" \
                   --service-dns-domain="cluster.local" \
+                  --pod-network-cidr="${cfg.clusterIpRange}" \
                   --skip-certificate-key-print \
                   --skip-token-print \
                   --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start"
 
                 ${tailscaleNetNsDownCommand}
+
+                curl "https://raw.githubusercontent.com/projectcalico/calico/${cfg.calicoVersion}/manifests/crds.yaml" | ${adminKubectl} apply -f -
               fi
 
               ${thenOrNull (
                 cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
               ) "systemctl start tailscale-${cfg.tailscaleApiServerSvc}-svc.service"}
+
+              ${adminKubectl} apply -f - <<-EOF
+              	${ident 1 nodeIpPool}
+              EOF
             '';
         };
         kubelet = {

@@ -40,13 +40,6 @@
         tailscale service name for kubernetes api server - used if mode is tailscale
       '';
     };
-    tailscaleEtcdSvc = lib.mkOption {
-      type = lib.types.str;
-      default = "etcd";
-      description = ''
-        tailscale service name for etcd - used if mode is tailscale
-      '';
-    };
     apiServerHost = lib.mkOption {
       type = lib.types.str or lib.types.null;
       default = null;
@@ -68,25 +61,18 @@
         port for kubernetes api server
       '';
     };
-    etcdClientHost = lib.mkOption {
-      type = lib.types.str or lib.types.null;
-      default = null;
+    calicoVersion = lib.mkOption {
+      type = lib.types.str;
+      default = "v3.31.3";
       description = ''
-        hostname for etcd client communication
+        version of calico to use for pod networking
       '';
     };
-    etcdPeerPort = lib.mkOption {
+    nodeIndex = lib.mkOption {
       type = lib.types.int;
-      default = 2380;
+      default = 0;
       description = ''
-        port for etcd peer communication
-      '';
-    };
-    etcdClientPort = lib.mkOption {
-      type = lib.types.int;
-      default = 2379;
-      description = ''
-        port for etcd client communication
+        index of the node, used for generating IPPools configuration
       '';
     };
   };

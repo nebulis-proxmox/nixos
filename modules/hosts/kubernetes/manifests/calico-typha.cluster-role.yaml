@@ -21,6 +21,21 @@ rules:
     verbs:
       - watch
       - list
+  - apiGroups: ["policy.networking.k8s.io"]
+    resources:
+      - adminnetworkpolicies
+      - baselineadminnetworkpolicies
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups: ["discovery.k8s.io"]
+    resources:
+      - endpointslices
+    verbs:
+      - get
+      - watch
+      - list
   - apiGroups: ["crd.projectcalico.org"]
     resources:
       - globalfelixconfigs
@@ -37,6 +52,12 @@ rules:
       - hostendpoints
       - blockaffinities
       - networksets
+      - stagednetworkpolicies
+      - stagedkubernetesnetworkpolicies
+      - stagedglobalnetworkpolicies
+      - tiers
+      - caliconodestatuses
+      - bgpfilters
     verbs:
       - get
       - list

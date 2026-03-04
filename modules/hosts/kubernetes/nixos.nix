@@ -414,9 +414,9 @@ in
               		${indent 2 calicoTyphaDeployment}
               	EOF
 
-                ${adminKubectl} apply -f - <<-EOF
-                	${indent 2 calicoTyphaService}
-                EOF
+              	${adminKubectl} apply -f - <<-EOF
+              		${indent 2 calicoTyphaService}
+              	EOF
               fi
 
               ${mkCalicoKubeconfig}

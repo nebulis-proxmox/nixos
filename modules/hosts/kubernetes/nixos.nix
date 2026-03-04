@@ -297,6 +297,8 @@ in
               calicoTyphaClusterRole = readManifest "calico-typha.cluster-role.yaml";
               calicoTyphaDeployment = readManifest "calico-typha.deployment.yaml";
               calicoTyphaService = readManifest "calico-typha.service.yaml";
+
+              isWorkerNode = if (builtins.elem "worker" cfg.kind) then "true" else "false";
             in
             ''
               ${mkCertFunction}
@@ -377,7 +379,11 @@ in
                   --skip-token-print \
                   --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start"
 
-                # Modify KubeProxy for Tailscale mode to use the host IP instead of the service IP for the API server 
+                if ${isWorkerNode}; then
+                	${adminKubectl} taint nodes \
+                		${config.networking.hostName} \
+                		node-role.kubernetes.io/control-plane-
+                fi
 
                 curl -s "https://raw.githubusercontent.com/projectcalico/calico/${cfg.calicoVersion}/manifests/crds.yaml" \
                   | ${adminKubectl} apply -f -

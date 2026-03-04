@@ -52,7 +52,6 @@ in
           {
             tailscale-vips-loopback = {
               description = "Tailscale VIPs loopback eBPF service";
-              enableStrictShellChecks = true;
               path = [
                 ebpf-pkg
                 cfg.package
@@ -71,6 +70,8 @@ in
                 Restart = "on-failure";
                 RestartSec = "5";
               };
+
+              wantedBy = [ "multi-user.target" ];
             };
           }
           // (lib.mapAttrs' (

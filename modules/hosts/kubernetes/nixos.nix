@@ -380,9 +380,9 @@ in
                   --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start"
 
                 if ${isWorkerNode}; then
-                	${adminKubectl} taint nodes \
-                		${config.networking.hostName} \
-                		node-role.kubernetes.io/control-plane-
+                  ${adminKubectl} taint nodes \
+                    ${config.networking.hostName} \
+                    node-role.kubernetes.io/control-plane-
                 fi
 
                 curl -s "https://raw.githubusercontent.com/projectcalico/calico/${cfg.calicoVersion}/manifests/crds.yaml" \

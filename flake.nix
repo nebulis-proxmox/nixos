@@ -21,6 +21,7 @@
     # nix index for comma
     nix-index-database.url = "github:Mic92/nix-index-database";
     nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
+    tailscale-vips-looback.url = "github:nebulis-proxmox/tailscale-vips-loopback";
   };
 
   outputs =

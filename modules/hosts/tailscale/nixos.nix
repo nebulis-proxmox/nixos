@@ -83,6 +83,10 @@ in
         ) cfg.services;
       };
 
+      environment.systemPackages = [
+        inputs.tailscale-vips-looback.packages.${pkgs.system}.default
+      ];
+
       environment.persistence."${config.nebulis.impermanence.dontBackup}" = {
         hideMounts = true;
         directories = [

@@ -60,6 +60,10 @@ in
               after = [ "tailscaled.service" ];
               requires = [ "tailscaled.service" ];
 
+              environment = {
+                RUST_LOG = "info";
+              };
+
               serviceConfig = {
                 ExecStart = ''
                   ${ebpf-pkg}/bin/tailscale-vips-loopback

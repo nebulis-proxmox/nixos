@@ -247,6 +247,7 @@ in
           documentation = [ "https://kubernetes.io/docs" ];
           after = [ "crio.service" ];
           wantedBy = [ "multi-user.target" ];
+          before = [ "tailscale-svcs.target" ];
           enableStrictShellChecks = true;
 
           script =
@@ -296,71 +297,21 @@ in
               calicoTyphaClusterRole = readManifest "calico-typha.cluster-role.yaml";
               calicoTyphaDeployment = readManifest "calico-typha.deployment.yaml";
               calicoTyphaService = readManifest "calico-typha.service.yaml";
-
-              tailscaleNetNsUpCommand =
-                thenOrNull (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind))
-                  ''
-                    tailscaleDns="${tailscaleDnsCommand}"
-                    serviceIp="$(tailscale dns query "${cfg.tailscaleApiServerSvc}.$tailscaleDns" | grep ClassINET | awk '{print $5}')"
-
-                    ip netns add vips0
-                    ip link add veth-default type veth peer name veth-vips0
-                    ip link set veth-vips0 netns vips0
-                    ip addr add 172.31.0.1/24 dev veth-default
-                    ip netns exec vips0 ip addr add 172.31.0.2/24 dev veth-vips0
-                    ip link set veth-default up
-                    ip netns exec vips0 ip link set veth-vips0 up
-                    ip netns exec vips0 ip link set lo up
-                    ip netns exec vips0 ip route add default via 172.31.0.1
-                    iptables -t nat -I PREROUTING 1 -i veth-default -p tcp -d "$serviceIp" --dport 443 -j DNAT --to-destination "$ipAddr:${toString cfg.apiServerPort}"
-                    iptables -I INPUT 1 -i veth-default -d "$ipAddr" -p tcp --dport ${toString cfg.apiServerPort} -j ACCEPT
-                  '';
-              tailscaleNetNsDownCommand =
-                thenOrNull (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind))
-                  ''
-                    iptables -t nat -D PREROUTING -i veth-default -p tcp -d "$serviceIp" --dport 443 -j DNAT --to-destination "$ipAddr:${toString cfg.apiServerPort}"
-                    iptables -D INPUT -i veth-default -d "$ipAddr" -p tcp --dport ${toString cfg.apiServerPort} -j ACCEPT
-                    ip link set veth-default down
-                    ip link del veth-default
-                    ip netns del vips0
-                  '';
-
-              socatUpCommand = thenOrNull (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)) ''
-                socat tcp-connect:127.0.0.1:10248,fork,reuseaddr exec:'ip netns exec vips0 socat STDIO "tcp-listen:10248"',nofork 2>/dev/null &
-                kubeletSocatPID=$!
-
-                socat tcp-connect:127.0.0.1:10257,fork,reuseaddr exec:'ip netns exec vips0 socat STDIO "tcp-listen:10257"',nofork 2>/dev/null &
-                controllerSocatPID=$!
-
-                socat tcp-connect:127.0.0.1:10259,fork,reuseaddr exec:'ip netns exec vips0 socat STDIO "tcp-listen:10259"',nofork 2>/dev/null &
-                schedulerSocatPID=$!
-              '';
-
-              socatDownCommand =
-                thenOrNull (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind))
-                  ''
-                    kill -2 $kubeletSocatPID
-                    kill -2 $controllerSocatPID
-                    kill -2 $schedulerSocatPID
-                  '';
-
-              netnsWrapper = thenOrNull (
-                cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
-              ) "ip netns exec vips0";
             in
             ''
               ${mkCertFunction}
               ${mkKubeconfigFunction}
+
+              if systemctl is-active --quiet kubelet.service; then
+                echo "Kubernetes cluster is already initialized on this node, skipping initialization and joining."
+                exit 0
+              fi
 
               ${waitForNetwork}
               ${waitForDns}
 
               clusterAddr="${clusterAddr}"
               ipAddr="${ipCommand}"
-
-              ${thenOrNull (
-                cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
-              ) "systemctl stop tailscale-${cfg.tailscaleApiServerSvc}-svc.service  || true"}
 
               if ${clusterTestCommand}; then
               	echo "Kubernetes API server is already running, skipping initialization of cluster."
@@ -403,16 +354,16 @@ in
                   --skip-token-print \
                   --skip-phases="upload-config,upload-certs,mark-control-plane,bootstrap-token,kubelet-finalize,addon,show-join-command"
 
-                ${tailscaleNetNsUpCommand}
+                ${thenOrNull (
+                  cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
+                ) "systemctl start tailscale-${cfg.tailscaleApiServerSvc}-svc.service || true"}
 
-              	until ${netnsWrapper} ${clusterTestCommand}; do
+              	until ${clusterTestCommand}; do
               		echo "Waiting for Kubernetes API server to be ready..."
               		sleep 1
               	done
-                
-                ${socatUpCommand}
 
-                ${netnsWrapper} kubeadm init \
+                kubeadm init \
                   --apiserver-advertise-address="$ipAddr" \
                   --apiserver-bind-port="${toString cfg.apiServerPort}" \
                   --cert-dir="/etc/kubernetes/pki" \
@@ -426,45 +377,39 @@ in
                   --skip-token-print \
                   --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start"
 
-                ${socatDownCommand}
+                # Modify KubeProxy for Tailscale mode to use the host IP instead of the service IP for the API server 
 
                 curl -s "https://raw.githubusercontent.com/projectcalico/calico/${cfg.calicoVersion}/manifests/crds.yaml" \
-                  | ${netnsWrapper} ${adminKubectl} apply -f -
+                  | ${adminKubectl} apply -f -
                 
-              	${netnsWrapper} ${adminKubectl} apply -f - <<-EOF
+              	${adminKubectl} apply -f - <<-EOF
               		${indent 2 nodeIpPool}
               	EOF
-              
-              	${netnsWrapper} ${adminKubectl} apply -f - <<-EOF
+
+              	${adminKubectl} apply -f - <<-EOF
               		${indent 2 calicoClusterRole}
               	EOF
 
-                ${netnsWrapper} ${adminKubectl} create clusterrolebinding calico-cni --clusterrole=calico-cni --user=calico-cni
-                ${netnsWrapper} ${adminKubectl} create configmap -n kube-system calico-typha-ca --from-file=/etc/kubernetes/pki/typha-ca.crt
+                ${adminKubectl} create clusterrolebinding calico-cni --clusterrole=calico-cni --user=calico-cni
+                ${adminKubectl} create configmap -n kube-system calico-typha-ca --from-file=/etc/kubernetes/pki/typha-ca.crt
 
                 ${mkCalicoTyphaCert}
 
-                ${netnsWrapper} ${adminKubectl} create secret generic -n kube-system calico-typha-certs --from-file=/etc/kubernetes/pki/typha.key --from-file=/etc/kubernetes/pki/typha.crt
-                ${netnsWrapper} ${adminKubectl} create serviceaccount -n kube-system calico-typha
+                ${adminKubectl} create secret generic -n kube-system calico-typha-certs --from-file=/etc/kubernetes/pki/typha.key --from-file=/etc/kubernetes/pki/typha.crt
+                ${adminKubectl} create serviceaccount -n kube-system calico-typha
 
-              	${netnsWrapper} ${adminKubectl} apply -f - <<-EOF
+              	${adminKubectl} apply -f - <<-EOF
               		${indent 2 calicoTyphaClusterRole}
               	EOF
 
-                ${netnsWrapper} ${adminKubectl} create clusterrolebinding calico-typha --clusterrole=calico-typha --serviceaccount=kube-system:calico-typha
+                ${adminKubectl} create clusterrolebinding calico-typha --clusterrole=calico-typha --serviceaccount=kube-system:calico-typha
 
-              	${netnsWrapper} ${adminKubectl} apply -f - <<-EOF
+              	${adminKubectl} apply -f - <<-EOF
               		${indent 2 calicoTyphaDeployment}
               	EOF
-
-                ${tailscaleNetNsDownCommand}
               fi
 
               ${mkCalicoKubeconfig}
-
-              ${thenOrNull (
-                cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
-              ) "systemctl start tailscale-${cfg.tailscaleApiServerSvc}-svc.service"}
             '';
         };
         kubelet = {

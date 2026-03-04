@@ -45,47 +45,67 @@ in
           };
         };
 
-        services = lib.mapAttrs' (
-          name: value:
-          nameValuePair ("tailscale-${name}-svc") ({
-            enableStrictShellChecks = true;
-            path = [
-              cfg.package
-              pkgs.util-linux
-            ];
-            after = [
-              "tailscaled.service"
-              "tailscaled-autoconnect.service"
-            ];
-            requires = [ "tailscaled.service" ] ++ value.requires;
+        services =
+          let
+            ebpf-pkg = inputs.tailscale-vips-looback.packages.${pkgs.system}.default;
+          in
+          {
+            tailscale-vips-loopback = {
+              description = "Tailscale VIPs loopback eBPF service";
+              enableStrictShellChecks = true;
+              path = [
+                ebpf-pkg
+                cfg.package
+              ];
+              after = [ "tailscaled.service" ];
+              requires = [ "tailscaled.service" ];
 
-            serviceConfig = {
-              Type = "oneshot";
-              RemainAfterExit = true;
+              serviceConfig = {
+                ExecStart = ''
+                  ${ebpf-pkg}/bin/tailscale-vips-loopback
+                '';
+                Restart = "on-failure";
+                RestartSec = "5";
+              };
             };
+          }
+          // (lib.mapAttrs' (
+            name: value:
+            nameValuePair ("tailscale-${name}-svc") ({
+              enableStrictShellChecks = true;
+              path = [
+                cfg.package
+                pkgs.util-linux
+              ];
+              after = [
+                "tailscaled.service"
+                "tailscaled-autoconnect.service"
+              ];
+              requires = [ "tailscaled.service" ] ++ value.requires;
 
-            script = ''
-              (
-                flock -w 10 9 || exit 1
-                tailscale serve --service=svc:${name} --${value.mode}=${toString value.port} ${value.target}
-              ) 9>/var/lock/tailscale-svcs.lock
-            '';
-            preStop = "(tailscale serve drain svc:${name} && sleep 10) || true";
-            postStop = ''
-              (
-                flock -w 10 9 || exit 1
-                tailscale serve clear svc:${name} || true
-              ) 9>/var/lock/tailscale-svcs.lock
-            '';
+              serviceConfig = {
+                Type = "oneshot";
+                RemainAfterExit = true;
+              };
 
-            wantedBy = [ "tailscale-svcs.target" ];
-          })
-        ) cfg.services;
+              script = ''
+                (
+                  flock -w 10 9 || exit 1
+                  tailscale serve --service=svc:${name} --${value.mode}=${toString value.port} ${value.target}
+                ) 9>/var/lock/tailscale-svcs.lock
+              '';
+              preStop = "(tailscale serve drain svc:${name} && sleep 10) || true";
+              postStop = ''
+                (
+                  flock -w 10 9 || exit 1
+                  tailscale serve clear svc:${name} || true
+                ) 9>/var/lock/tailscale-svcs.lock
+              '';
+
+              wantedBy = [ "tailscale-svcs.target" ];
+            })
+          ) cfg.services);
       };
-
-      environment.systemPackages = [
-        inputs.tailscale-vips-looback.packages.${pkgs.system}.default
-      ];
 
       environment.persistence."${config.nebulis.impermanence.dontBackup}" = {
         hideMounts = true;

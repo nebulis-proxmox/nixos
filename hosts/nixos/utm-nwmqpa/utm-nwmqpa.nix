@@ -24,6 +24,10 @@
         enable = true;
         mode = "tailscale";
         nodeIndex = 0;
+        kind = [
+          "control-plane",
+          "worker"
+        ];
       };
 
       tailscale = {

@@ -313,11 +313,24 @@ in
               isControlPlane = if (builtins.elem "control-plane" cfg.kind) then "true" else "false";
 
               initConfiguration = ''
-                apiVersion: kubeadm.k8s.io/v1beta2
+                apiVersion: kubeadm.k8s.io/v1beta4
                 kind: InitConfiguration
+                localAPIEndpoint:
+                  advertiseAddress: "$ipAddr"
+                  bindPort: ${toString cfg.apiServerPort}
                 nodeRegistration:
                   kubeletExtraArgs:
                     node-ip: "$ipAddr"
+                ---
+                apiVersion: kubeadm.k8s.io/v1beta4
+                kind: ClusterConfiguration
+                kubernetesVersion: 1.34.3
+                imageRepository: registry.k8s.io
+                certificatesDir: /etc/kubernetes/pki
+                controlPlaneEndpoint: "$clusterAddr"
+                networking:
+                  serviceSubnet: "${cfg.clusterIpRange}"
+                  dnsDomain: cluster.local
               '';
 
               joinConfiguration = ''
@@ -384,21 +397,11 @@ in
               	EOF
 
               	# Pull required images
-                kubeadm config images pull \
-                  --image-repository="registry.k8s.io" \
-                  --kubernetes-version="v1.34.3"
+                kubeadm config images pull --config /tmp/init-config.yaml
 
                 kubeadm init \
                   --config /tmp/init-config.yaml \
-                  --apiserver-advertise-address="$ipAddr" \
-                  --apiserver-bind-port="${toString cfg.apiServerPort}" \
-                  --cert-dir="/etc/kubernetes/pki" \
-                  --control-plane-endpoint="$clusterAddr" \
-                  --image-repository="registry.k8s.io" \
-                  --kubernetes-version="v1.34.3" \
                   --node-name="${config.networking.hostName}" \
-                  --service-dns-domain="cluster.local" \
-                  --pod-network-cidr="${cfg.clusterIpRange}" \
                   --skip-certificate-key-print \
                   --skip-token-print \
                   --skip-phases="upload-config,upload-certs,mark-control-plane,bootstrap-token,kubelet-finalize,addon,show-join-command"
@@ -414,15 +417,7 @@ in
 
                 kubeadm init \
                   --config /tmp/init-config.yaml \
-                  --apiserver-advertise-address="$ipAddr" \
-                  --apiserver-bind-port="${toString cfg.apiServerPort}" \
-                  --cert-dir="/etc/kubernetes/pki" \
-                  --control-plane-endpoint="$clusterAddr" \
-                  --image-repository="registry.k8s.io" \
-                  --kubernetes-version="v1.34.3" \
                   --node-name="${config.networking.hostName}" \
-                  --service-dns-domain="cluster.local" \
-                  --pod-network-cidr="${cfg.clusterIpRange}" \
                   --skip-certificate-key-print \
                   --skip-token-print \
                   --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start"

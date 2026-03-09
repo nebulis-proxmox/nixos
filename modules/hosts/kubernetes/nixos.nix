@@ -379,10 +379,10 @@ in
                   --skip-token-print \
                   --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start"
                   
-                ${adminKubectl} taint nodes ${config.networking.hostName} node-role.kubernetes.io/control-plane-
+                ${adminKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane-
 
                 if ${isOnlyControlNode}; then
-                  ${adminKubectl} taint node CriticalAddonsOnly=true:NoSchedule
+                  ${adminKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule
                 fi
 
                 curl -s "https://raw.githubusercontent.com/projectcalico/calico/${cfg.calicoVersion}/manifests/crds.yaml" \

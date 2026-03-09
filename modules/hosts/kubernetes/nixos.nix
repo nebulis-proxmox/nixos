@@ -311,6 +311,22 @@ in
 
               isOnlyControlNode = if (builtins.elem "worker" cfg.kind) then "false" else "true";
               isControlPlane = if (builtins.elem "control-plane" cfg.kind) then "true" else "false";
+
+              initConfiguration = ''
+                apiVersion: kubeadm.k8s.io/v1beta2
+                kind: InitConfiguration
+                nodeRegistration:
+                  kubeletExtraArgs:
+                    node-ip: "$ipAddr"
+              '';
+
+              joinConfiguration = ''
+                apiVersion: kubeadm.k8s.io/v1beta2
+                kind: JoinConfiguration
+                nodeRegistration:
+                  kubeletExtraArgs:
+                    node-ip: "$ipAddr"
+              '';
             in
             ''
               ${mkCertFunction}
@@ -330,6 +346,10 @@ in
               if ${clusterTestCommand}; then
               	echo "Kubernetes API server is already running, skipping initialization of cluster."
 
+              	cat > /tmp/join-config.yaml <<EOF
+              		${joinConfiguration}
+              	EOF
+
                 ${mkTempSuperAdminKubeconfig}
 
                 kubeadm token create --kubeconfig=/etc/kubernetes/temp.conf --print-join-command > /tmp/join-command.sh
@@ -338,7 +358,7 @@ in
                 chmod +x /tmp/join-command.sh
                 /tmp/join-command.sh \
                   ${thenOrNull (builtins.elem "control-plane" cfg.kind) "--control-plane --apiserver-advertise-address=\"$ipAddr\" --apiserver-bind-port=\"${toString cfg.apiServerPort}\" \\"}
-                  --ignore-preflight-errors="FileAvailable--etc-kubernetes-pki-ca.crt"
+                  --ignore-preflight-errors="FileAvailable--etc-kubernetes-pki-ca.crt" --config /tmp/join-config.yaml
                 rm -f /tmp/join-command.sh
 
               	${adminKubectl} apply -f - <<-EOF
@@ -354,8 +374,14 @@ in
                 fi
 
                 ${adminKubectl} -n kube-system rollout restart deployment coredns
+
+                rm -f /tmp/join-config.yaml
               else
               	echo "Initializing Kubernetes cluster..."
+
+              	cat > /tmp/init-config.yaml <<EOF
+              		${initConfiguration}
+              	EOF
 
               	# Pull required images
                 kubeadm config images pull \
@@ -363,6 +389,7 @@ in
                   --kubernetes-version="v1.34.3"
 
                 kubeadm init \
+                  --config /tmp/init-config.yaml \
                   --apiserver-advertise-address="$ipAddr" \
                   --apiserver-bind-port="${toString cfg.apiServerPort}" \
                   --cert-dir="/etc/kubernetes/pki" \
@@ -386,6 +413,7 @@ in
               	done
 
                 kubeadm init \
+                  --config /tmp/init-config.yaml \
                   --apiserver-advertise-address="$ipAddr" \
                   --apiserver-bind-port="${toString cfg.apiServerPort}" \
                   --cert-dir="/etc/kubernetes/pki" \
@@ -453,6 +481,8 @@ in
               	${adminKubectl} apply -f - <<-EOF
               		${indent 2 calicoNodeDaemonSet}
               	EOF
+
+                rm -f /tmp/init-config.yaml
               fi
 
               ${mkCalicoKubeconfig}

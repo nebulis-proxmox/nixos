@@ -346,8 +346,8 @@ in
               if ${clusterTestCommand}; then
               	echo "Kubernetes API server is already running, skipping initialization of cluster."
 
-              	cat > /tmp/join-config.yaml <<EOF
-              		${joinConfiguration}
+              	cat > /tmp/join-config.yaml <<-EOF
+              		${indent 2 joinConfiguration}
               	EOF
 
                 ${mkTempSuperAdminKubeconfig}
@@ -379,8 +379,8 @@ in
               else
               	echo "Initializing Kubernetes cluster..."
 
-              	cat > /tmp/init-config.yaml <<EOF
-              		${initConfiguration}
+              	cat > /tmp/init-config.yaml <<-EOF
+              		${indent 2 initConfiguration}
               	EOF
 
               	# Pull required images

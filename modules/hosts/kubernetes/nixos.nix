@@ -320,7 +320,8 @@ in
                   bindPort: ${toString cfg.apiServerPort}
                 nodeRegistration:
                   kubeletExtraArgs:
-                    node-ip: "$ipAddr"
+                    - name: node-ip
+                      value: "$ipAddr"
                 ---
                 apiVersion: kubeadm.k8s.io/v1beta4
                 kind: ClusterConfiguration
@@ -338,7 +339,8 @@ in
                 kind: JoinConfiguration
                 nodeRegistration:
                   kubeletExtraArgs:
-                    node-ip: "$ipAddr"
+                    - name: node-ip
+                      value: "$ipAddr"
               '';
             in
             ''

@@ -333,7 +333,7 @@ in
               '';
 
               joinConfiguration = ''
-                apiVersion: kubeadm.k8s.io/v1beta2
+                apiVersion: kubeadm.k8s.io/v1beta4
                 kind: JoinConfiguration
                 nodeRegistration:
                   kubeletExtraArgs:

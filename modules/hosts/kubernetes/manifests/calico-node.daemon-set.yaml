@@ -80,7 +80,7 @@ spec:
               value: "true"
             # Location of the CA bundle Felix uses to authenticate Typha; volume mount
             - name: FELIX_TYPHACAFILE
-              value: /calico-typha-ca/typhaca.crt
+              value: /calico-typha-ca/typha-ca.crt
             # Common name on the Typha certificate; used to verify we are talking to an authentic typha
             - name: FELIX_TYPHACN
               value: calico-typha

@@ -23,6 +23,7 @@ rules:
       - blockaffinities
       - ipamblocks
       - ipamhandles
+      - ipamconfigs
     verbs:
       - get
       - list
@@ -31,9 +32,9 @@ rules:
       - delete
   - apiGroups: ["crd.projectcalico.org"]
     resources:
-      - ipamconfigs
       - clusterinformations
       - ippools
+      - ipreservations
     verbs:
       - get
       - list

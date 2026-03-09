@@ -310,6 +310,7 @@ in
               calicoNodeDaemonSet = readManifest "calico-node.daemon-set.yaml";
 
               isOnlyControlNode = if (builtins.elem "worker" cfg.kind) then "false" else "true";
+              isControlPlane = if (builtins.elem "control-plane" cfg.kind) then "true" else "false";
             in
             ''
               ${mkCertFunction}
@@ -343,6 +344,14 @@ in
               	${adminKubectl} apply -f - <<-EOF
               		${indent 2 nodeIpPool}
               	EOF
+
+                if ${isControlPlane}; then
+                  ${adminKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane-
+                fi
+
+                if ${isOnlyControlNode}; then
+                  ${adminKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule
+                fi
 
                 ${adminKubectl} -n kube-system rollout restart deployment coredns
               else

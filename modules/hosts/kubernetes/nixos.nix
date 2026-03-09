@@ -298,7 +298,7 @@ in
               calicoTyphaDeployment = readManifest "calico-typha.deployment.yaml";
               calicoTyphaService = readManifest "calico-typha.service.yaml";
 
-              isWorkerNode = if (builtins.elem "worker" cfg.kind) then "true" else "false";
+              isOnlyControlNode = if (builtins.elem "worker" cfg.kind) then "false" else "true";
             in
             ''
               ${mkCertFunction}
@@ -378,11 +378,11 @@ in
                   --skip-certificate-key-print \
                   --skip-token-print \
                   --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start"
+                  
+                ${adminKubectl} taint nodes ${config.networking.hostName} node-role.kubernetes.io/control-plane-
 
-                if ${isWorkerNode}; then
-                  ${adminKubectl} taint nodes \
-                    ${config.networking.hostName} \
-                    node-role.kubernetes.io/control-plane-
+                if ${isOnlyControlNode}; then
+                  ${adminKubectl} taint node CriticalAddonsOnly=true:NoSchedule
                 fi
 
                 curl -s "https://raw.githubusercontent.com/projectcalico/calico/${cfg.calicoVersion}/manifests/crds.yaml" \

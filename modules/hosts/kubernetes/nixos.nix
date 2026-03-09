@@ -285,6 +285,15 @@ in
                 expirationDays = 365;
               };
 
+              mkCalicoNodeCert = mkCert {
+                ca = "/etc/kubernetes/pki/typha-ca";
+                cert = "/etc/kubernetes/pki/calico-node";
+                subject = {
+                  CN = "calico-node";
+                };
+                expirationDays = 365;
+              };
+
               mkCalicoKubeconfig = mkKubeconfig {
                 ca = "/etc/kubernetes/pki/ca";
                 kubeconfig = "/etc/kubernetes/calico-cni.conf";
@@ -297,6 +306,8 @@ in
               calicoTyphaClusterRole = readManifest "calico-typha.cluster-role.yaml";
               calicoTyphaDeployment = readManifest "calico-typha.deployment.yaml";
               calicoTyphaService = readManifest "calico-typha.service.yaml";
+              calicoNodeClusterRole = readManifest "calico-node.cluster-role.yaml";
+              calicoNodeDaemonSet = readManifest "calico-node.daemon-set.yaml";
 
               isOnlyControlNode = if (builtins.elem "worker" cfg.kind) then "false" else "true";
             in
@@ -416,6 +427,22 @@ in
 
               	${adminKubectl} apply -f - <<-EOF
               		${indent 2 calicoTyphaService}
+              	EOF
+                
+                ${mkCalicoNodeCert}
+
+                ${adminKubectl} create secret generic -n kube-system calico-node-certs --from-file=/etc/kubernetes/pki/calico-node.key --from-file=/etc/kubernetes/pki/calico-node.crt
+
+                ${adminKubectl} create serviceaccount -n kube-system calico-node
+
+              	${adminKubectl} apply -f - <<-EOF
+              		${indent 2 calicoNodeClusterRole}
+              	EOF
+
+                ${adminKubectl} create clusterrolebinding calico-node --clusterrole=calico-node --serviceaccount=kube-system:calico-node
+
+              	${adminKubectl} apply -f - <<-EOF
+              		${indent 2 calicoNodeDaemonSet}
               	EOF
               fi
 

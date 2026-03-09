@@ -339,6 +339,17 @@ in
                   kubeletExtraArgs:
                     - name: node-ip
                       value: "$ipAddr"
+                controlPlane:
+                  localAPIEndpoint:
+                    advertiseAddress: "$ipAddr"
+                    bindPort: ${toString cfg.apiServerPort}
+                discovery:
+                  bootstrapToken:
+                    token: "$token"
+                    apiServerEndpoint: "$clusterAddr"
+                    caCertHashes:
+                      - "sha256:$caCertHash"
+                
               '';
             in
             ''
@@ -358,21 +369,17 @@ in
 
               if ${clusterTestCommand}; then
               	echo "Kubernetes API server is already running, skipping initialization of cluster."
+                
+                ${mkTempSuperAdminKubeconfig}
+
+                token=$(kubeadm token create --kubeconfig=/etc/kubernetes/temp.conf)
+                caCertHash=$(openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl ec -pubin -outform der | openssl dgst -sha256 -hex | sed 's/^.* //')
 
               	cat > /tmp/join-config.yaml <<-EOF
               		${indent 2 joinConfiguration}
               	EOF
 
-                ${mkTempSuperAdminKubeconfig}
-
-                kubeadm token create --kubeconfig=/etc/kubernetes/temp.conf --print-join-command > /tmp/join-command.sh
-                sed -i '$s/$/ $@/' /tmp/join-command.sh
-                rm -f /etc/kubernetes/temp.conf
-                chmod +x /tmp/join-command.sh
-                /tmp/join-command.sh \
-                  ${thenOrNull (builtins.elem "control-plane" cfg.kind) "--control-plane --apiserver-advertise-address=\"$ipAddr\" --apiserver-bind-port=\"${toString cfg.apiServerPort}\" \\"}
-                  --ignore-preflight-errors="FileAvailable--etc-kubernetes-pki-ca.crt" --config /tmp/join-config.yaml
-                rm -f /tmp/join-command.sh
+                kubeadm join --config /tmp/join-config.yaml
 
               	${adminKubectl} apply -f - <<-EOF
               		${indent 2 nodeIpPool}

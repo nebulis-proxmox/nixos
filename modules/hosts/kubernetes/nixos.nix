@@ -84,8 +84,6 @@ let
   readModuleFile = file: builtins.readFile "${inputs.self}/modules/hosts/kubernetes/${file}";
   readManifest = manifest: readModuleFile "manifests/${manifest}";
 
-  kubeletManifest = readManifest "kubelet.yaml";
-
   mkCertFunction = readModuleFile "scripts/mkCert.sh";
 
   mkCert =
@@ -506,12 +504,14 @@ in
             ExecCondition = ''
               ${pkgs.bash}/bin/bash -c "${pkgs.coreutils}/bin/test -f /etc/kubernetes/kubelet.conf || ${pkgs.coreutils}/bin/test -f /etc/kubernetes/bootstrap-kubelet.conf"
             '';
+            EnvironmentFile = "-/var/lib/kubelet/kubeadm-flags.env";
             ExecStart = ''
               ${pkgs.kubernetes}/bin/kubelet \
                 --config=/var/lib/kubelet/config.yaml \
                 --kubeconfig=/etc/kubernetes/kubelet.conf \
                 --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf \
-                --v=2
+                --v=2 \
+                $KUBELET_KUBEADM_ARGS
             '';
             Restart = "on-failure";
             RestartSec = "5";

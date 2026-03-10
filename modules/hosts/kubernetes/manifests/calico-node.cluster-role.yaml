@@ -11,6 +11,12 @@ rules:
       - namespaces
     verbs:
       - get
+  # The CNI plugin needs to create tokens.
+  - apiGroups: [""]
+    resources:
+      - serviceaccounts/token
+    verbs:
+      - create
   # EndpointSlices are used for Service-based network policy rule
   # enforcement.
   - apiGroups: ["discovery.k8s.io"]

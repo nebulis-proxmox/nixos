@@ -435,59 +435,8 @@ in
                   ${adminKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule
                 fi
 
-                curl -s "https://raw.githubusercontent.com/projectcalico/calico/${cfg.calicoVersion}/manifests/crds.yaml" \
-                  | ${adminKubectl} apply -f -
-                
-              	${adminKubectl} apply -f - <<-EOF
-              		${indent 2 nodeIpPool}
-              	EOF
-
-              	${adminKubectl} apply -f - <<-EOF
-              		${indent 2 calicoClusterRole}
-              	EOF
-
-                ${adminKubectl} create clusterrolebinding calico-cni --clusterrole=calico-cni --user=calico-cni
-                ${adminKubectl} create configmap -n kube-system calico-typha-ca --from-file=/etc/kubernetes/pki/typha-ca.crt
-
-                ${mkCalicoTyphaCert}
-
-                ${adminKubectl} create secret generic -n kube-system calico-typha-certs --from-file=/etc/kubernetes/pki/typha.key --from-file=/etc/kubernetes/pki/typha.crt
-                ${adminKubectl} create serviceaccount -n kube-system calico-typha
-
-              	${adminKubectl} apply -f - <<-EOF
-              		${indent 2 calicoTyphaClusterRole}
-              	EOF
-
-                ${adminKubectl} create clusterrolebinding calico-typha --clusterrole=calico-typha --serviceaccount=kube-system:calico-typha
-
-              	${adminKubectl} apply -f - <<-EOF
-              		${indent 2 calicoTyphaDeployment}
-              	EOF
-
-              	${adminKubectl} apply -f - <<-EOF
-              		${indent 2 calicoTyphaService}
-              	EOF
-                
-                ${mkCalicoNodeCert}
-
-                ${adminKubectl} create secret generic -n kube-system calico-node-certs --from-file=/etc/kubernetes/pki/calico-node.key --from-file=/etc/kubernetes/pki/calico-node.crt
-
-                ${adminKubectl} create serviceaccount -n kube-system calico-node
-
-              	${adminKubectl} apply -f - <<-EOF
-              		${indent 2 calicoNodeClusterRole}
-              	EOF
-
-                ${adminKubectl} create clusterrolebinding calico-node --clusterrole=calico-node --serviceaccount=kube-system:calico-node
-
-              	${adminKubectl} apply -f - <<-EOF
-              		${indent 2 calicoNodeDaemonSet}
-              	EOF
-
                 rm -f /tmp/init-config.yaml
               fi
-
-              ${mkCalicoKubeconfig}
             '';
         };
         kubelet = {

@@ -133,6 +133,7 @@ in
             WatchdogSec = "60s";
             ExecStart = ''
               ${pkgs.cri-o}/bin/crio \
+                --cni-plugin-dir=/opt/cni/bin \
                 --cni-plugin-dir=${lib.getBin pkgs.cni-plugins}/bin \
                 --cni-plugin-dir=${lib.getBin pkgs.calico-cni-plugin}/bin \
                 --cni-plugin-dir=${lib.getBin calico-cni-plugin-ipam}/bin \

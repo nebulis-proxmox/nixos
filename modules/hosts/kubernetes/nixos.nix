@@ -427,7 +427,7 @@ in
                   --node-name="${config.networking.hostName}" \
                   --skip-certificate-key-print \
                   --skip-token-print \
-                  --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start"
+                  --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start,addon/kube-proxy"
                   
                 ${adminKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane-
 

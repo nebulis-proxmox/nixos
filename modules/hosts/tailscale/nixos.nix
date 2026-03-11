@@ -51,7 +51,6 @@ in
           in
           {
             tailscale-vips-loopback = {
-              enable = false;
               description = "Tailscale VIPs loopback eBPF service";
               path = [
                 ebpf-pkg

@@ -170,9 +170,9 @@ in
 {
   config = lib.mkMerge [
     (lib.mkIf cfg.enable {
-      environment.systemPackages = with pkgs; [
-        kubernetes
-        openssl
+      environment.systemPackages = [
+        pkgs.unstable.kubernetes
+        pkgs.openssl
       ];
 
       age.secrets = {
@@ -233,7 +233,7 @@ in
             pkgs.jq
             pkgs.curl
             pkgs.gawk
-            pkgs.kubernetes
+            pkgs.unstable.kubernetes
             pkgs.systemd
             pkgs.cri-tools
             pkgs.mount
@@ -323,12 +323,11 @@ in
                 ---
                 apiVersion: kubeadm.k8s.io/v1beta4
                 kind: ClusterConfiguration
-                kubernetesVersion: 1.34.3
+                kubernetesVersion: ${cfg.kubernetesVersion}
                 imageRepository: registry.k8s.io
                 certificatesDir: /etc/kubernetes/pki
                 controlPlaneEndpoint: "$clusterAddr"
                 networking:
-                  serviceSubnet: "${cfg.clusterIpRange}"
                   dnsDomain: cluster.local
               '';
 
@@ -349,7 +348,7 @@ in
                     apiServerEndpoint: "$clusterAddr"
                     caCertHashes:
                       - "sha256:$caCertHash"
-                
+
               '';
             in
             ''
@@ -427,7 +426,7 @@ in
                   --node-name="${config.networking.hostName}" \
                   --skip-certificate-key-print \
                   --skip-token-print \
-                  --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start,addon/kube-proxy"
+                  --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start,addon"
                   
                 ${adminKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane-
 
@@ -449,7 +448,7 @@ in
           wantedBy = [ "multi-user.target" ];
           before = [ "tailscale-svcs.target" ];
           path = [
-            pkgs.kubernetes
+            pkgs.unstable.kubernetes
             pkgs.coreutils
             pkgs.mount
             pkgs.util-linux

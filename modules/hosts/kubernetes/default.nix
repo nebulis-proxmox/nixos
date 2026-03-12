@@ -47,11 +47,11 @@
         hostname for kubernetes api server
       '';
     };
-    clusterIpRange = lib.mkOption {
+    kubernetesVersion = lib.mkOption {
       type = lib.types.str;
-      default = "10.96.0.0/12";
+      default = "1.35.2";
       description = ''
-        cluster ip range for kubernetes services
+        version of kubernetes to install
       '';
     };
     apiServerPort = lib.mkOption {

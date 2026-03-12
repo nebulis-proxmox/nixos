@@ -16,6 +16,7 @@ in
         allowedTCPPorts = lib.mkForce [ ];
         allowedUDPPorts = lib.mkForce [ (lib.mkIf config.nebulis.tailscale.enable config.nebulis.tailscale.udpListenPort) ];
         allowPing = true;
+        checkReversePath = "loose";
       };
 
       # The notion of "online" is a broken concept

@@ -8,6 +8,7 @@ let
 
   virtualbox-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHMUPPWoKGmRxJmQq7sz8li1ffBrqMLB633yJa2LaLwh";
   utm-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHMUPPWoKGmRxJmQq7sz8li1ffBrqMLB633yJa2LaLwh";
+  hetzner-nu1-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICXek+yTaovcgZdode516J17/JH1bImAINt0jaRbPqZK";
 
   # Groups
   nwmqpa = [
@@ -22,6 +23,7 @@ let
   machines = [
     utm-nwmqpa
     virtualbox-nwmqpa
+    hetzner-nu1-nwmqpa
   ];
 
   users = nwmqpa ++ mzlapq;
@@ -30,6 +32,7 @@ let
 
   k8s-control-plane = [
     utm-nwmqpa
+    hetzner-nu1-nwmqpa
   ];
 in
 {
@@ -41,6 +44,7 @@ in
   "nwmqpaPassword.age".publicKeys = [
     virtualbox-nwmqpa
     utm-nwmqpa
+    hetzner-nu1-nwmqpa
   ]
   ++ nwmqpa;
 
@@ -59,6 +63,11 @@ in
   ]
   ++ users;
 
+  "hetzner-nu1-nwmqpa.age".publicKeys = [
+    hetzner-nu1-nwmqpa
+  ]
+  ++ users;
+
   "tailscaleKey.age".publicKeys = all;
 
   # CA keys
@@ -67,38 +76,41 @@ in
     mzlapqMain
     virtualbox-nwmqpa
     utm-nwmqpa
-  ];
+  ]
+  ++ k8s-control-plane;
   "ca-root.key.age".publicKeys = [
     nwmqpaMain
     mzlapqMain
-  ];
+  ]
+  ++ k8s-control-plane;
   "ca-intermediate.key.age".publicKeys = [
     nwmqpaMain
     mzlapqMain
-  ];
+  ]
+  ++ k8s-control-plane;
   "ca-kubernetes.key.age".publicKeys = [
     nwmqpaMain
     mzlapqMain
     virtualbox-nwmqpa
-    utm-nwmqpa
-  ];
+  ]
+  ++ k8s-control-plane;
   "ca-etcd.key.age".publicKeys = [
     nwmqpaMain
     mzlapqMain
     virtualbox-nwmqpa
-    utm-nwmqpa
-  ];
+  ]
+  ++ k8s-control-plane;
   "ca-kubernetes-front-proxy.key.age".publicKeys = [
     nwmqpaMain
     mzlapqMain
     virtualbox-nwmqpa
-    utm-nwmqpa
-  ];
+  ]
+  ++ k8s-control-plane;
   "ca-typha.key.age".publicKeys = [
     nwmqpaMain
     mzlapqMain
     virtualbox-nwmqpa
-    utm-nwmqpa
-  ];
+  ]
+  ++ k8s-control-plane;
   # END_SECRETS
 }

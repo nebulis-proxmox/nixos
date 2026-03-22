@@ -51,7 +51,7 @@ in
   # Only this key need only the main key to be deciphered
   "mzlapqDerivedSshKey.age".publicKeys = [ mzlapqMain ];
 
-  "mzlapqPassword.age".publicKeys = [ ];
+  "mzlapqPassword.age".publicKeys = [ mzlapqMain ];
   # Machine keys
   "virtualbox-nwmqpa.age".publicKeys = [
     virtualbox-nwmqpa

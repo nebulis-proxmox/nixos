@@ -20,7 +20,7 @@
         users.enableUsers = [
           "nwmqpa"
         ];
-      }
+      };
     };
   };
 }

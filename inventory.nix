@@ -16,6 +16,11 @@
           "nwmqpa"
         ];
       };
+      hetzner-nu1-nwmqpa = {
+        users.enableUsers = [
+          "nwmqpa"
+        ];
+      }
     };
   };
 }

@@ -44,4 +44,5 @@ nix run github:nix-community/nixos-anywhere -- \
     --build-on remote \
     --extra-files "$temp" \
     --generate-hardware-config nixos-generate-config "$rootdir/hosts/nixos/$hostname/hardware-configuration.nix" \
-    --flake .#$hostname root@$ipaddress $@
+    --flake ".#$hostname" \
+    --target-host "root@$ipaddress" $@

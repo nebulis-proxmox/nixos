@@ -318,11 +318,11 @@
         "systems": "systems_2"
       },
       "locked": {
-        "lastModified": 1774139015,
-        "narHash": "sha256-Pt6j97sk+DuXzjf915exKlA2+ztgGaAk04NkRxBdlTA=",
+        "lastModified": 1774139371,
+        "narHash": "sha256-KgYHWnnBCAxLEuM4ScXY6RqGL6jjSA/oUWgOomhwJhw=",
         "owner": "nebulis-proxmox",
         "repo": "tailscale-vips-loopback",
-        "rev": "422d9465cf18669650f2b81f7c3354bd1c937c75",
+        "rev": "01387633a82d6a072f500c43b85575ef707dc02c",
         "type": "github"
       },
       "original": {

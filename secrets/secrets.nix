@@ -106,11 +106,5 @@ in
     virtualbox-nwmqpa
   ]
   ++ k8s-control-plane;
-  "ca-typha.key.age".publicKeys = [
-    nwmqpaMain
-    mzlapqMain
-    virtualbox-nwmqpa
-  ]
-  ++ k8s-control-plane;
   # END_SECRETS
 }

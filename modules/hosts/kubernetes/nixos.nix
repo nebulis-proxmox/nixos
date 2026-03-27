@@ -443,8 +443,8 @@ in
                 ${mkTempSuperAdminKubeconfig}
 
                 if ${toBooleanString isOnlyControlNode}; then
-                  ${adminTempKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule
-                  ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule
+                  ${adminTempKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule --overwrite true
+                  ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule --overwrite true
                   ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/worker=worker- || true
                 else
                   ${adminTempKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule- || true
@@ -456,7 +456,7 @@ in
                 fi
 
                 if ${toBooleanString isControlAndWorker}; then
-                  ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:PreferNoSchedule
+                  ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:PreferNoSchedule --overwrite true
                 fi
 
                 if ${toBooleanString isControlPlane}; then
@@ -464,7 +464,7 @@ in
                 fi
 
                 if ${toBooleanString isWorker}; then
-                  ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/worker=worker  --overwrite true
+                  ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/worker=worker --overwrite true
                 fi
 
                 ${adminTempKubectl} -n kube-system rollout restart deployment coredns

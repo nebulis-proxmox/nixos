@@ -170,6 +170,8 @@ let
   isOnlyWorkerNode = isWorker && !isControlPlane;
   isControlAndWorker = isControlPlane && isWorker;
 
+  toBooleanString = b: if b then "true" else "false";
+
   restartTailscaleSvc = thenOrNull (
     cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
   ) "systemctl restart tailscale-${cfg.tailscaleApiServerSvc}-svc.service || true";
@@ -441,7 +443,7 @@ in
               if ${clusterTestCommand}; then
                 ${mkTempSuperAdminKubeconfig}
 
-                if ${toString isOnlyControlNode}; then
+                if ${toBooleanString isOnlyControlNode}; then
                   ${adminTempKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule
                   ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule
                   ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/worker=worker- || true
@@ -450,19 +452,19 @@ in
                   ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule-
                 fi
 
-                if ${toString isOnlyWorkerNode}; then
+                if ${toBooleanString isOnlyWorkerNode}; then
                   ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane- || true
                 fi
 
-                if ${toString isControlAndWorker}; then
+                if ${toBooleanString isControlAndWorker}; then
                   ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:PreferNoSchedule
                 fi
 
-                if ${toString isControlPlane}; then
+                if ${toBooleanString isControlPlane}; then
                   ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane
                 fi
 
-                if ${toString isWorker}; then
+                if ${toBooleanString isWorker}; then
                   ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/worker=worker
                 fi
 

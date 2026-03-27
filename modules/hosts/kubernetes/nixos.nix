@@ -447,8 +447,8 @@ in
                   ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule
                   ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/worker=worker- || true
                 else
-                  ${adminTempKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule-
-                  ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule-
+                  ${adminTempKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule- || true
+                  ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule- || true
                 fi
 
                 if ${toBooleanString isOnlyWorkerNode}; then

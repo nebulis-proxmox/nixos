@@ -438,7 +438,6 @@ in
               ${waitForDns}
 
               clusterAddr="${clusterAddr}"
-              ipAddr="${ipCommand}"
 
               if ${clusterTestCommand}; then
                 ${mkTempSuperAdminKubeconfig}

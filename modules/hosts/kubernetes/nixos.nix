@@ -186,7 +186,6 @@ in
         "ca-kubernetes.key".file = inputs.self + "/secrets/ca-kubernetes.key.age";
         "ca-etcd.key".file = inputs.self + "/secrets/ca-etcd.key.age";
         "ca-kubernetes-front-proxy.key".file = inputs.self + "/secrets/ca-kubernetes-front-proxy.key.age";
-        "ca-typha.key".file = inputs.self + "/secrets/ca-typha.key.age";
         "sa-kubernetes.key".file = inputs.self + "/secrets/sa-kubernetes.key.age";
       };
 
@@ -213,14 +212,6 @@ in
         };
         "kubernetes/pki/etcd/ca.crt" = {
           text = builtins.readFile "${inputs.self}/certs/ca-etcd.crt";
-          mode = "0644";
-        };
-        "kubernetes/pki/typha-ca.key" = {
-          source = config.age.secrets."ca-typha.key".path;
-          mode = "0600";
-        };
-        "kubernetes/pki/typha-ca.crt" = {
-          text = builtins.readFile "${inputs.self}/certs/ca-typha.crt";
           mode = "0644";
         };
         "kubernetes/pki/sa.key" = {

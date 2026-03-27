@@ -79,8 +79,6 @@ let
     done
   '';
 
-  clusterTestCommand = "curl --silent --fail --insecure \"https://${clusterAddr}/readyz\" --max-time 10 >/dev/null";
-
   readModuleFile = file: builtins.readFile "${inputs.self}/modules/hosts/kubernetes/${file}";
 
   mkCertFunction = readModuleFile "scripts/mkCert.sh";
@@ -150,21 +148,31 @@ let
     in
     "mkKubeconfig \"${ca}\" \"${kubeconfig}\" \"${shadowedClusterAddr}\" \"${toString expirationDays}\" \"${username}\" \"${group}\"";
 
+  mkTempSuperAdminKubeconfig =
+    (mkKubeconfig {
+      ca = "/etc/kubernetes/pki/ca";
+      kubeconfig = "/etc/kubernetes/temp.conf";
+      username = "kubernetes-super-admin";
+      group = "system:masters";
+      expirationDays = 1;
+      isLocal = false;
+    })
+    + "\ntrap 'rm -f /etc/kubernetes/temp.conf' EXIT";
+
+  clusterTestCommand = "curl --silent --fail --insecure \"https://${clusterAddr}/readyz\" --max-time 10 >/dev/null";
+
   adminKubectl = "kubectl --kubeconfig=/etc/kubernetes/admin.conf";
+  adminTempKubectl = "kubectl --kubeconfig=/etc/kubernetes/temp.conf";
 
-  addLabelOnNodeFunction = builtins.replaceStrings [ "$KUBECTL" ] [ adminKubectl ] (
-    readModuleFile "scripts/addLabelOnNode.sh"
-  );
-  removeLabelOnNodeFunction = builtins.replaceStrings [ "$KUBECTL" ] [ adminKubectl ] (
-    readModuleFile "scripts/removeLabelOnNode.sh"
-  );
-  addTaintOnNodeFunction = builtins.replaceStrings [ "$KUBECTL" ] [ adminKubectl ] (
-    readModuleFile "scripts/addTaintOnNode.sh"
-  );
-  removeTaintOnNodeFunction = builtins.replaceStrings [ "$KUBECTL" ] [ adminKubectl ] (
-    readModuleFile "scripts/removeTaintOnNode.sh"
-  );
+  isControlPlane = builtins.elem "control-plane" cfg.kind;
+  isWorker = builtins.elem "worker" cfg.kind;
+  isOnlyControlNode = isControlPlane && !isWorker;
+  isOnlyWorkerNode = isWorker && !isControlPlane;
+  isControlAndWorker = isControlPlane && isWorker;
 
+  restartTailscaleSvc = thenOrNull (
+    cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
+  ) "systemctl restart tailscale-${cfg.tailscaleApiServerSvc}-svc.service || true";
 in
 {
   config = lib.mkMerge [
@@ -249,18 +257,6 @@ in
 
           script =
             let
-              mkTempSuperAdminKubeconfig = mkKubeconfig {
-                ca = "/etc/kubernetes/pki/ca";
-                kubeconfig = "/etc/kubernetes/temp.conf";
-                username = "kubernetes-super-admin";
-                group = "system:masters";
-                expirationDays = 1;
-                isLocal = false;
-              };
-
-              isOnlyControlNode = if (builtins.elem "worker" cfg.kind) then "false" else "true";
-              isControlPlane = if (builtins.elem "control-plane" cfg.kind) then "true" else "false";
-
               initConfiguration = ''
                 apiVersion: kubeadm.k8s.io/v1beta4
                 kind: InitConfiguration
@@ -281,33 +277,10 @@ in
                 networking:
                   dnsDomain: cluster.local
               '';
-
-              joinConfiguration = ''
-                apiVersion: kubeadm.k8s.io/v1beta4
-                kind: JoinConfiguration
-                nodeRegistration:
-                  kubeletExtraArgs:
-                    - name: node-ip
-                      value: "$ipAddr"
-                controlPlane:
-                  localAPIEndpoint:
-                    advertiseAddress: "$ipAddr"
-                    bindPort: ${toString cfg.apiServerPort}
-                discovery:
-                  bootstrapToken:
-                    token: "$token"
-                    apiServerEndpoint: "$clusterAddr"
-                    caCertHashes:
-                      - "sha256:$caCertHash"
-
-              '';
             in
             ''
-              ${mkCertFunction}
-              ${mkKubeconfigFunction}
-
               if systemctl is-active --quiet kubelet.service; then
-                echo "Kubernetes cluster is already initialized on this node, skipping initialization and joining."
+                echo "Kubernetes cluster is already initialized on this node, skipping initialization."
                 exit 0
               fi
 
@@ -318,34 +291,8 @@ in
               ipAddr="${ipCommand}"
 
               if ${clusterTestCommand}; then
-              	echo "Kubernetes API server is already running, skipping initialization of cluster."
-                
-                ${mkTempSuperAdminKubeconfig}
-
-                token=$(kubeadm token create --kubeconfig=/etc/kubernetes/temp.conf)
-                caCertHash=$(openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl ec -pubin -outform der | openssl dgst -sha256 -hex | sed 's/^.* //')
-
-              	cat > /tmp/join-config.yaml <<-EOF
-              		${indent 2 joinConfiguration}
-              	EOF
-
-                kubeadm join --config /tmp/join-config.yaml
-
-              	${adminKubectl} apply -f - <<-EOF
-              		${indent 2 nodeIpPool}
-              	EOF
-
-                if ${isControlPlane}; then
-                  ${adminKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane-
-                fi
-
-                if ${isOnlyControlNode}; then
-                  ${adminKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule
-                fi
-
-                ${adminKubectl} -n kube-system rollout restart deployment coredns
-
-                rm -f /tmp/join-config.yaml
+                  echo "Kubernetes API server is already running, skipping initialization of cluster."
+                  exit 1
               else
               	echo "Initializing Kubernetes cluster..."
 
@@ -363,9 +310,7 @@ in
                   --skip-token-print \
                   --skip-phases="upload-config,upload-certs,mark-control-plane,bootstrap-token,kubelet-finalize,addon,show-join-command"
 
-                ${thenOrNull (
-                  cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)
-                ) "systemctl start tailscale-${cfg.tailscaleApiServerSvc}-svc.service || true"}
+                ${restartTailscaleSvc}
 
               	until ${clusterTestCommand}; do
               		echo "Waiting for Kubernetes API server to be ready..."
@@ -378,22 +323,173 @@ in
                   --skip-certificate-key-print \
                   --skip-token-print \
                   --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start,addon"
-                  
-                ${adminKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane-
-
-                if ${isOnlyControlNode}; then
-                  ${adminKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule
-                fi
 
                 rm -f /tmp/init-config.yaml
               fi
             '';
         };
+
+        join-kubernetes-cluster = {
+          path = [
+            pkgs.openssl
+            pkgs.jq
+            pkgs.curl
+            pkgs.gawk
+            pkgs.unstable.kubernetes
+            pkgs.systemd
+            pkgs.cri-tools
+            pkgs.mount
+            pkgs.util-linux
+            pkgs.iproute2
+          ]
+          ++ pathPackages;
+          description = "Initialize Kubernetes cluster";
+          documentation = [ "https://kubernetes.io/docs" ];
+          after = [ "crio.service" ];
+          wantedBy = [ "multi-user.target" ];
+          before = [ "tailscale-svcs.target" ];
+          enableStrictShellChecks = true;
+
+          script =
+            let
+              joinConfiguration = ''
+                apiVersion: kubeadm.k8s.io/v1beta4
+                kind: JoinConfiguration
+                nodeRegistration:
+                  kubeletExtraArgs:
+                    - name: node-ip
+                      value: "$ipAddr"
+                controlPlane:
+                  localAPIEndpoint:
+                    advertiseAddress: "$ipAddr"
+                    bindPort: ${toString cfg.apiServerPort}
+                discovery:
+                  bootstrapToken:
+                    token: "$token"
+                    apiServerEndpoint: "$clusterAddr"
+                    caCertHashes:
+                      - "sha256:$caCertHash"
+              '';
+            in
+            ''
+              ${mkCertFunction}
+              ${mkKubeconfigFunction}
+
+              if systemctl is-active --quiet kubelet.service; then
+                echo "Kubernetes cluster is already running on this node, skipping joining."
+                exit 0
+              fi
+
+              ${waitForNetwork}
+              ${waitForDns}
+
+              clusterAddr="${clusterAddr}"
+              ipAddr="${ipCommand}"
+
+              if ${clusterTestCommand}; then
+                ${mkTempSuperAdminKubeconfig}
+
+                token=$(kubeadm token create --kubeconfig=/etc/kubernetes/temp.conf)
+                caCertHash=$(openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl ec -pubin -outform der | openssl dgst -sha256 -hex | sed 's/^.* //')
+
+              	cat > /tmp/join-config.yaml <<-EOF
+              		${indent 2 joinConfiguration}
+              	EOF
+
+                kubeadm join --config /tmp/join-config.yaml
+
+                ${restartTailscaleSvc}
+
+                rm -f /tmp/join-config.yaml
+              else
+                echo "Kubernetes API server is not reachable at ${clusterAddr}, cannot join cluster."
+                exit 1
+              fi
+            '';
+        };
+
+        relabel-kubernetes-node =
+          let
+          in
+          {
+            path = [
+              pkgs.openssl
+              pkgs.jq
+              pkgs.curl
+              pkgs.gawk
+              pkgs.unstable.kubernetes
+              pkgs.systemd
+              pkgs.cri-tools
+              pkgs.mount
+              pkgs.util-linux
+              pkgs.iproute2
+            ]
+            ++ pathPackages;
+            description = "Initialize Kubernetes cluster";
+            documentation = [ "https://kubernetes.io/docs" ];
+            after = [ "crio.service" ];
+            wantedBy = [ "multi-user.target" ];
+            before = [ "tailscale-svcs.target" ];
+            enableStrictShellChecks = true;
+
+            script = ''
+              ${mkCertFunction}
+              ${mkKubeconfigFunction}
+
+              if ! systemctl is-active --quiet kubelet.service; then
+                echo "Kubernetes cluster is not initialized on this node, failing to relabel."
+                exit 1
+              fi
+
+              ${waitForNetwork}
+              ${waitForDns}
+
+              clusterAddr="${clusterAddr}"
+              ipAddr="${ipCommand}"
+
+              if ${clusterTestCommand}; then
+                ${mkTempSuperAdminKubeconfig}
+
+                if ${toString isOnlyControlNode}; then
+                  ${adminTempKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule
+                  ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule
+                  ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/worker=worker- || true
+                else
+                  ${adminTempKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule-
+                  ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule-
+                fi
+
+                if ${toString isOnlyWorkerNode}; then
+                  ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane- || true
+                fi
+
+                if ${toString isControlAndWorker}; then
+                  ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:PreferNoSchedule
+                fi
+
+                if ${toString isControlPlane}; then
+                  ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane
+                fi
+
+                if ${toString isWorker}; then
+                  ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/worker=worker
+                fi
+
+                ${adminTempKubectl} -n kube-system rollout restart deployment coredns
+              else
+                echo "Kubernetes API server is not reachable at ${clusterAddr}, cannot relabel node."
+                exit 1
+              fi
+            '';
+          };
+
         kubelet = {
           description = "Kubelet";
           documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
           after = [
             "init-kubernetes-cluster.service"
+            "join-kubernetes-cluster.service"
+            "relabel-kubernetes-node.service"
           ];
           requires = [ "crio.service" ];
           wantedBy = [ "multi-user.target" ];

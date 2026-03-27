@@ -460,11 +460,11 @@ in
                 fi
 
                 if ${toBooleanString isControlPlane}; then
-                  ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane
+                  ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane --overwrite true
                 fi
 
                 if ${toBooleanString isWorker}; then
-                  ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/worker=worker
+                  ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/worker=worker  --overwrite true
                 fi
 
                 ${adminTempKubectl} -n kube-system rollout restart deployment coredns

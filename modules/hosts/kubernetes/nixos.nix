@@ -82,7 +82,6 @@ let
   clusterTestCommand = "curl --silent --fail --insecure \"https://${clusterAddr}/readyz\" --max-time 10 >/dev/null";
 
   readModuleFile = file: builtins.readFile "${inputs.self}/modules/hosts/kubernetes/${file}";
-  readManifest = manifest: readModuleFile "manifests/${manifest}";
 
   mkCertFunction = readModuleFile "scripts/mkCert.sh";
 
@@ -258,54 +257,6 @@ in
                 expirationDays = 1;
                 isLocal = false;
               };
-
-              nodeIpPool = builtins.toJSON {
-                apiVersion = "crd.projectcalico.org/v1";
-                kind = "IPPool";
-                metadata = {
-                  name = "${config.networking.hostName}-ippool";
-                };
-                spec = {
-                  cidr = "10.96.${toString cfg.nodeIndex}.0/24";
-                  ipipMode = "Never";
-                  natOutgoing = true;
-                  disabled = false;
-                  nodeSelector = "kubernetes.io/hostname == \"${config.networking.hostName}\"";
-                };
-              };
-
-              mkCalicoTyphaCert = mkCert {
-                ca = "/etc/kubernetes/pki/typha-ca";
-                cert = "/etc/kubernetes/pki/typha";
-                subject = {
-                  CN = "calico-typha";
-                };
-                expirationDays = 365;
-              };
-
-              mkCalicoNodeCert = mkCert {
-                ca = "/etc/kubernetes/pki/typha-ca";
-                cert = "/etc/kubernetes/pki/calico-node";
-                subject = {
-                  CN = "calico-node";
-                };
-                expirationDays = 365;
-              };
-
-              mkCalicoKubeconfig = mkKubeconfig {
-                ca = "/etc/kubernetes/pki/ca";
-                kubeconfig = "/etc/kubernetes/calico-cni.conf";
-                username = "calico-cni";
-                expirationDays = 365;
-                isLocal = true;
-              };
-
-              calicoClusterRole = readManifest "calico-cni.cluster-role.yaml";
-              calicoTyphaClusterRole = readManifest "calico-typha.cluster-role.yaml";
-              calicoTyphaDeployment = readManifest "calico-typha.deployment.yaml";
-              calicoTyphaService = readManifest "calico-typha.service.yaml";
-              calicoNodeClusterRole = readManifest "calico-node.cluster-role.yaml";
-              calicoNodeDaemonSet = readManifest "calico-node.daemon-set.yaml";
 
               isOnlyControlNode = if (builtins.elem "worker" cfg.kind) then "false" else "true";
               isControlPlane = if (builtins.elem "control-plane" cfg.kind) then "true" else "false";

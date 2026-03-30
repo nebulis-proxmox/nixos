@@ -496,13 +496,7 @@ in
         kubelet = {
           description = "Kubelet";
           documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
-          after = [
-            "init-kubernetes-cluster.service"
-            "join-kubernetes-cluster.service"
-            "relabel-kubernetes-node.service"
-          ];
           requires = [ "crio.service" ];
-          wantedBy = [ "multi-user.target" ];
           path = [
             pkgs.unstable.kubernetes
             pkgs.coreutils

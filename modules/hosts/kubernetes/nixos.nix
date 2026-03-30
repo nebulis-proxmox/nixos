@@ -285,14 +285,14 @@ in
                   ipAddr="${ipCommand}"
 
                   if ${clusterTestCommand}; then
-                      echo "Kubernetes API server is already running, skipping initialization of cluster."
-                      exit 0
+                    echo "Kubernetes API server is already running, skipping initialization of cluster."
+                    exit 0
                   else
                     echo "Initializing Kubernetes cluster..."
 
-                    cat > /tmp/init-config.yaml <<-EOF
-                      ${indent 2 initConfiguration}
-                    EOF
+                  	cat > /tmp/init-config.yaml <<-EOF
+                  		${indent 2 initConfiguration}
+                  	EOF
 
                     # Pull required images
                     kubeadm config images pull --config /tmp/init-config.yaml
@@ -398,9 +398,9 @@ in
                     token=$(kubeadm token create --kubeconfig=/etc/kubernetes/temp.conf)
                     caCertHash=$(openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl ec -pubin -outform der | openssl dgst -sha256 -hex | sed 's/^.* //')
 
-                    cat > /tmp/join-config.yaml <<-EOF
-                      ${indent 2 joinConfiguration}
-                    EOF
+                  	cat > /tmp/join-config.yaml <<-EOF
+                  		${indent 2 joinConfiguration}
+                  	EOF
 
                     kubeadm join --config /tmp/join-config.yaml
 

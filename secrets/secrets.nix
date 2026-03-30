@@ -9,6 +9,7 @@ let
   virtualbox-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHMUPPWoKGmRxJmQq7sz8li1ffBrqMLB633yJa2LaLwh";
   utm-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHMUPPWoKGmRxJmQq7sz8li1ffBrqMLB633yJa2LaLwh";
   hetzner-nu1-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICXek+yTaovcgZdode516J17/JH1bImAINt0jaRbPqZK";
+  t470s-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL3QKONcPWYUxgu1qkHZOn+j+daSMAuLAMsqpjqNobHp";
 
   # Groups
   nwmqpa = [
@@ -24,6 +25,7 @@ let
     utm-nwmqpa
     virtualbox-nwmqpa
     hetzner-nu1-nwmqpa
+    t470s-nwmqpa
   ];
 
   users = nwmqpa ++ mzlapq;
@@ -33,6 +35,7 @@ let
   k8s-control-plane = [
     utm-nwmqpa
     hetzner-nu1-nwmqpa
+    t470s-nwmqpa
   ];
 in
 {
@@ -45,6 +48,7 @@ in
     virtualbox-nwmqpa
     utm-nwmqpa
     hetzner-nu1-nwmqpa
+    t470s-nwmqpa
   ]
   ++ nwmqpa;
 
@@ -65,6 +69,11 @@ in
 
   "hetzner-nu1-nwmqpa.age".publicKeys = [
     hetzner-nu1-nwmqpa
+  ]
+  ++ users;
+
+  "t470s-nwmqpa.age".publicKeys = [
+    t470s-nwmqpa
   ]
   ++ users;
 

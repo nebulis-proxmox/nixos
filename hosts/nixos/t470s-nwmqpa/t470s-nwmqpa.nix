@@ -9,7 +9,7 @@
     inputs.self.nixosModules.nebulis
   ];
   config = {
-    networking.hostName = "virtualbox-nwmqpa";
+    networking.hostName = "t470s-nwmqpa";
     system.stateVersion = "25.11";
 
     nebulis = {
@@ -22,6 +22,10 @@
         enable = true;
         mode = "tailscale";
         nodeIndex = 1;
+        kind = [
+          "control-plane"
+          "worker"
+        ];
       };
 
       tailscale = {
@@ -32,7 +36,7 @@
 
       network = {
         useBr0 = true;
-        physicalInterfaceName = "enp0s3";
+        physicalInterfaceName = "enp0s31f6";
       };
 
       timezone.paris = true;
@@ -49,7 +53,7 @@
             poolName = "rpool";
             encrypt = false;
             disk1 = "nvme0n1";
-            reservation = "5G";
+            reservation = "20G";
             impermanenceRoot = true;
           };
           storage = {

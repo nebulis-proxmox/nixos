@@ -24,6 +24,13 @@ in
       };
 
       environment.enableAllTerminfo = true;
+
+      services.logind.settings.Login = {
+        HandlePowerKey = "poweroff";
+        HandleLidSwitch = "ignore";
+        HandleLidSwitchExternalPower = "ignore";
+        HandleLidSwitchDocked = "ignore";
+      };
     })
     {
       assertions = lib.mkIf cfg.enable [

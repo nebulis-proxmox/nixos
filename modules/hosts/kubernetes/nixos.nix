@@ -539,9 +539,6 @@ in
               requisite = [ "kubelet.service" ];
               after = [
                 "kubelet.service"
-                "init-kubernetes-cluster.service"
-                "join-kubernetes-cluster.service"
-                "relabel-kubernetes-node.service"
               ];
             };
           };

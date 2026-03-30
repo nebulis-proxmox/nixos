@@ -354,6 +354,13 @@ in
 
               script =
                 let
+                  controlPlaneBody = if (isControlPlane) then ''
+                    controlPlane:
+                      localAPIEndpoint:
+                        advertiseAddress: "$ipAddr"
+                        bindPort: ${toString cfg.apiServerPort}
+                  '' else "";
+
                   joinConfiguration = ''
                     apiVersion: kubeadm.k8s.io/v1beta4
                     kind: JoinConfiguration
@@ -361,10 +368,7 @@ in
                       kubeletExtraArgs:
                         - name: node-ip
                           value: "$ipAddr"
-                    controlPlane:
-                      localAPIEndpoint:
-                        advertiseAddress: "$ipAddr"
-                        bindPort: ${toString cfg.apiServerPort}
+                    ${controlPlaneBody}
                     discovery:
                       bootstrapToken:
                         token: "$token"
@@ -400,7 +404,7 @@ in
 
                     kubeadm join --config /tmp/join-config.yaml
 
-                    ${restartTailscaleSvc}
+                    ${toString restartTailscaleSvc}
 
                     rm -f /tmp/join-config.yaml
                   else

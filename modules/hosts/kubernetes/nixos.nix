@@ -245,7 +245,6 @@ in
           documentation = [ "https://kubernetes.io/docs" ];
           after = [ "crio.service" ];
           wantedBy = [ "multi-user.target" ];
-          before = [ "tailscale-svcs.target" ];
           enableStrictShellChecks = true;
 
           script =
@@ -285,7 +284,7 @@ in
 
               if ${clusterTestCommand}; then
                   echo "Kubernetes API server is already running, skipping initialization of cluster."
-                  exit 1
+                  exit 0
               else
               	echo "Initializing Kubernetes cluster..."
 
@@ -336,11 +335,13 @@ in
             pkgs.iproute2
           ]
           ++ pathPackages;
-          description = "Initialize Kubernetes cluster";
+          description = "Join Kubernetes cluster";
           documentation = [ "https://kubernetes.io/docs" ];
-          after = [ "crio.service" ];
+          after = [
+            "crio.service"
+            "init-kubernetes-cluster.service"
+          ];
           wantedBy = [ "multi-user.target" ];
-          before = [ "tailscale-svcs.target" ];
           enableStrictShellChecks = true;
 
           script =
@@ -418,11 +419,13 @@ in
               pkgs.iproute2
             ]
             ++ pathPackages;
-            description = "Initialize Kubernetes cluster";
+            description = "Relabel Kubernetes node";
             documentation = [ "https://kubernetes.io/docs" ];
-            after = [ "crio.service" ];
+            after = [
+              "init-kubernetes-cluster.service"
+              "join-kubernetes-cluster.service"
+            ];
             wantedBy = [ "multi-user.target" ];
-            before = [ "tailscale-svcs.target" ];
             enableStrictShellChecks = true;
 
             script = ''

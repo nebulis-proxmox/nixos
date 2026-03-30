@@ -462,14 +462,14 @@ in
                   if ${toBooleanString isOnlyControlNode}; then
                     ${adminTempKubectl} taint node --overwrite=true ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule
                     ${adminTempKubectl} taint node --overwrite=true ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule
-                    ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/worker=worker- || true
+                    ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/worker- || true
                   else
                     ${adminTempKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule- || true
                     ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule- || true
                   fi
 
                   if ${toBooleanString isOnlyWorkerNode}; then
-                    ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane- || true
+                    ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/control-plane- || true
                   fi
 
                   if ${toBooleanString isControlAndWorker}; then

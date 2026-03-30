@@ -525,7 +525,12 @@ in
             target = "127.0.0.1:${toString cfg.apiServerPort}";
             systemdConfig = {
               requisite = [ "kubelet.service" ];
-              after = [ "kubelet.service" ];
+              after = [
+                "kubelet.service"
+                "init-kubernetes-cluster.service"
+                "join-kubernetes-cluster.service"
+                "relabel-kubernetes-node.service"
+              ];
             };
           };
         };

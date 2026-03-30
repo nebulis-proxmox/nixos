@@ -485,7 +485,6 @@ in
           ];
           requires = [ "crio.service" ];
           wantedBy = [ "multi-user.target" ];
-          before = [ "tailscale-svcs.target" ];
           path = [
             pkgs.unstable.kubernetes
             pkgs.coreutils
@@ -524,7 +523,10 @@ in
             mode = "tcp";
             port = 443;
             target = "127.0.0.1:${toString cfg.apiServerPort}";
-            requires = [ "kubelet.service" ];
+            systemdConfig = {
+              requisite = [ "kubelet.service" ];
+              after = [ "kubelet.service" ];
+            };
           };
         };
       };

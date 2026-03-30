@@ -151,11 +151,11 @@ in
                   Target of the tailscale service
                 '';
               };
-              requires = mkOption {
-                type = types.listOf types.str;
-                default = [ ];
+              systemdConfig = mkOption {
+                type = types.attrs;
+                default = { };
                 description = ''
-                  Additional systemd service dependencies
+                  Additional systemd configuration for the tailscale service, such as extra dependencies or custom ordering.
                 '';
               };
             };

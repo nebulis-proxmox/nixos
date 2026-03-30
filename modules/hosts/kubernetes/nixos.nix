@@ -226,303 +226,305 @@ in
         };
       };
 
-      systemd.services = {
-        init-kubernetes-cluster = {
-          path = [
-            pkgs.openssl
-            pkgs.jq
-            pkgs.curl
-            pkgs.gawk
-            pkgs.unstable.kubernetes
-            pkgs.systemd
-            pkgs.cri-tools
-            pkgs.mount
-            pkgs.util-linux
-            pkgs.iproute2
-          ]
-          ++ pathPackages;
-          description = "Initialize Kubernetes cluster";
-          documentation = [ "https://kubernetes.io/docs" ];
-          after = [ "crio.service" ];
-          wantedBy = [ "multi-user.target" ];
-          enableStrictShellChecks = true;
+      systemd.services = (
+        lib.mkMerge [
+          (lib.mkIf isControlPlane ({
+            init-kubernetes-cluster = {
+              path = [
+                pkgs.openssl
+                pkgs.jq
+                pkgs.curl
+                pkgs.gawk
+                pkgs.unstable.kubernetes
+                pkgs.systemd
+                pkgs.cri-tools
+                pkgs.mount
+                pkgs.util-linux
+                pkgs.iproute2
+              ]
+              ++ pathPackages;
+              description = "Initialize Kubernetes cluster";
+              documentation = [ "https://kubernetes.io/docs" ];
+              after = [ "crio.service" ];
+              wantedBy = [ "multi-user.target" ];
+              enableStrictShellChecks = true;
 
-          script =
-            let
-              initConfiguration = ''
-                apiVersion: kubeadm.k8s.io/v1beta4
-                kind: InitConfiguration
-                localAPIEndpoint:
-                  advertiseAddress: "$ipAddr"
-                  bindPort: ${toString cfg.apiServerPort}
-                nodeRegistration:
-                  kubeletExtraArgs:
-                    - name: node-ip
-                      value: "$ipAddr"
-                ---
-                apiVersion: kubeadm.k8s.io/v1beta4
-                kind: ClusterConfiguration
-                kubernetesVersion: ${cfg.kubernetesVersion}
-                imageRepository: registry.k8s.io
-                certificatesDir: /etc/kubernetes/pki
-                controlPlaneEndpoint: "$clusterAddr"
-                networking:
-                  dnsDomain: cluster.local
-              '';
-            in
-            ''
-              if systemctl is-active --quiet kubelet.service; then
-                echo "Kubernetes cluster is already initialized on this node, skipping initialization."
-                exit 0
-              fi
+              script =
+                let
+                  initConfiguration = ''
+                    apiVersion: kubeadm.k8s.io/v1beta4
+                    kind: InitConfiguration
+                    localAPIEndpoint:
+                      advertiseAddress: "$ipAddr"
+                      bindPort: ${toString cfg.apiServerPort}
+                    nodeRegistration:
+                      kubeletExtraArgs:
+                        - name: node-ip
+                          value: "$ipAddr"
+                    ---
+                    apiVersion: kubeadm.k8s.io/v1beta4
+                    kind: ClusterConfiguration
+                    kubernetesVersion: ${cfg.kubernetesVersion}
+                    imageRepository: registry.k8s.io
+                    certificatesDir: /etc/kubernetes/pki
+                    controlPlaneEndpoint: "$clusterAddr"
+                    networking:
+                      dnsDomain: cluster.local
+                  '';
+                in
+                ''
+                  if systemctl is-active --quiet kubelet.service; then
+                    echo "Kubernetes cluster is already initialized on this node, skipping initialization."
+                    exit 0
+                  fi
 
-              ${waitForNetwork}
-              ${waitForDns}
+                  ${waitForNetwork}
+                  ${waitForDns}
 
-              clusterAddr="${clusterAddr}"
-              ipAddr="${ipCommand}"
+                  clusterAddr="${clusterAddr}"
+                  ipAddr="${ipCommand}"
 
-              if ${clusterTestCommand}; then
-                  echo "Kubernetes API server is already running, skipping initialization of cluster."
-                  exit 0
-              else
-              	echo "Initializing Kubernetes cluster..."
+                  if ${clusterTestCommand}; then
+                      echo "Kubernetes API server is already running, skipping initialization of cluster."
+                      exit 0
+                  else
+                    echo "Initializing Kubernetes cluster..."
 
-              	cat > /tmp/init-config.yaml <<-EOF
-              		${indent 2 initConfiguration}
-              	EOF
+                    cat > /tmp/init-config.yaml <<-EOF
+                      ${indent 2 initConfiguration}
+                    EOF
 
-              	# Pull required images
-                kubeadm config images pull --config /tmp/init-config.yaml
+                    # Pull required images
+                    kubeadm config images pull --config /tmp/init-config.yaml
 
-                kubeadm init \
-                  --config /tmp/init-config.yaml \
-                  --node-name="${config.networking.hostName}" \
-                  --skip-certificate-key-print \
-                  --skip-token-print \
-                  --skip-phases="upload-config,upload-certs,mark-control-plane,bootstrap-token,kubelet-finalize,addon,show-join-command"
+                    kubeadm init \
+                      --config /tmp/init-config.yaml \
+                      --node-name="${config.networking.hostName}" \
+                      --skip-certificate-key-print \
+                      --skip-token-print \
+                      --skip-phases="upload-config,upload-certs,mark-control-plane,bootstrap-token,kubelet-finalize,addon,show-join-command"
 
-                ${restartTailscaleSvc}
+                    ${restartTailscaleSvc}
 
-              	until ${clusterTestCommand}; do
-              		echo "Waiting for Kubernetes API server to be ready..."
-              		sleep 1
-              	done
+                    until ${clusterTestCommand}; do
+                      echo "Waiting for Kubernetes API server to be ready..."
+                      sleep 1
+                    done
 
-                kubeadm init \
-                  --config /tmp/init-config.yaml \
-                  --node-name="${config.networking.hostName}" \
-                  --skip-certificate-key-print \
-                  --skip-token-print \
-                  --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start,addon/kube-proxy"
+                    kubeadm init \
+                      --config /tmp/init-config.yaml \
+                      --node-name="${config.networking.hostName}" \
+                      --skip-certificate-key-print \
+                      --skip-token-print \
+                      --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start,addon/kube-proxy"
 
-                rm -f /tmp/init-config.yaml
-              fi
-            '';
+                    rm -f /tmp/init-config.yaml
+                  fi
+                '';
 
-          serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
-          };
-        };
-
-        join-kubernetes-cluster = {
-          path = [
-            pkgs.openssl
-            pkgs.jq
-            pkgs.curl
-            pkgs.gawk
-            pkgs.unstable.kubernetes
-            pkgs.systemd
-            pkgs.cri-tools
-            pkgs.mount
-            pkgs.util-linux
-            pkgs.iproute2
-          ]
-          ++ pathPackages;
-          description = "Join Kubernetes cluster";
-          documentation = [ "https://kubernetes.io/docs" ];
-          after = [
-            "crio.service"
-            "init-kubernetes-cluster.service"
-          ];
-          wantedBy = [ "multi-user.target" ];
-          enableStrictShellChecks = true;
-
-          script =
-            let
-              joinConfiguration = ''
-                apiVersion: kubeadm.k8s.io/v1beta4
-                kind: JoinConfiguration
-                nodeRegistration:
-                  kubeletExtraArgs:
-                    - name: node-ip
-                      value: "$ipAddr"
-                controlPlane:
-                  localAPIEndpoint:
-                    advertiseAddress: "$ipAddr"
-                    bindPort: ${toString cfg.apiServerPort}
-                discovery:
-                  bootstrapToken:
-                    token: "$token"
-                    apiServerEndpoint: "$clusterAddr"
-                    caCertHashes:
-                      - "sha256:$caCertHash"
-              '';
-            in
-            ''
-              ${mkCertFunction}
-              ${mkKubeconfigFunction}
-
-              if systemctl is-active --quiet kubelet.service; then
-                echo "Kubernetes cluster is already running on this node, skipping joining."
-                exit 0
-              fi
-
-              ${waitForNetwork}
-              ${waitForDns}
-
-              clusterAddr="${clusterAddr}"
-              ipAddr="${ipCommand}"
-
-              if ${clusterTestCommand}; then
-                ${mkTempSuperAdminKubeconfig}
-
-                token=$(kubeadm token create --kubeconfig=/etc/kubernetes/temp.conf)
-                caCertHash=$(openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl ec -pubin -outform der | openssl dgst -sha256 -hex | sed 's/^.* //')
-
-              	cat > /tmp/join-config.yaml <<-EOF
-              		${indent 2 joinConfiguration}
-              	EOF
-
-                kubeadm join --config /tmp/join-config.yaml
-
-                ${restartTailscaleSvc}
-
-                rm -f /tmp/join-config.yaml
-              else
-                echo "Kubernetes API server is not reachable at ${clusterAddr}, cannot join cluster."
-                exit 1
-              fi
-            '';
-
-          serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
-          };
-        };
-
-        relabel-kubernetes-node =
-          let
-          in
-          {
-            path = [
-              pkgs.openssl
-              pkgs.jq
-              pkgs.curl
-              pkgs.gawk
-              pkgs.unstable.kubernetes
-              pkgs.systemd
-              pkgs.cri-tools
-              pkgs.mount
-              pkgs.util-linux
-              pkgs.iproute2
-            ]
-            ++ pathPackages;
-            description = "Relabel Kubernetes node";
-            documentation = [ "https://kubernetes.io/docs" ];
-            after = [
-              "init-kubernetes-cluster.service"
-              "join-kubernetes-cluster.service"
-            ];
-            wantedBy = [ "multi-user.target" ];
-            enableStrictShellChecks = true;
-
-            script = ''
-              ${mkCertFunction}
-              ${mkKubeconfigFunction}
-
-              if ! systemctl is-active --quiet kubelet.service; then
-                echo "Kubernetes cluster is not initialized on this node, failing to relabel."
-                exit 1
-              fi
-
-              ${waitForNetwork}
-              ${waitForDns}
-
-              clusterAddr="${clusterAddr}"
-
-              if ${clusterTestCommand}; then
-                ${mkTempSuperAdminKubeconfig}
-
-                if ${toBooleanString isOnlyControlNode}; then
-                  ${adminTempKubectl} taint node --overwrite=true ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule
-                  ${adminTempKubectl} taint node --overwrite=true ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule
-                  ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/worker=worker- || true
-                else
-                  ${adminTempKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule- || true
-                  ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule- || true
-                fi
-
-                if ${toBooleanString isOnlyWorkerNode}; then
-                  ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane- || true
-                fi
-
-                if ${toBooleanString isControlAndWorker}; then
-                  ${adminTempKubectl} taint node --overwrite=true ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:PreferNoSchedule
-                fi
-
-                if ${toBooleanString isControlPlane}; then
-                  ${adminTempKubectl} label node --overwrite=true ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane
-                fi
-
-                if ${toBooleanString isWorker}; then
-                  ${adminTempKubectl} label node --overwrite=true ${config.networking.hostName} node-role.kubernetes.io/worker=worker
-                fi
-
-                ${adminTempKubectl} -n kube-system rollout restart deployment coredns || true
-              else
-                echo "Kubernetes API server is not reachable at ${clusterAddr}, cannot relabel node."
-                exit 1
-              fi
-            '';
-
-            serviceConfig = {
-              Type = "oneshot";
-              RemainAfterExit = true;
+              serviceConfig = {
+                Type = "oneshot";
+                RemainAfterExit = true;
+              };
             };
-          };
+          }))
+          ({
+            join-kubernetes-cluster = {
+              path = [
+                pkgs.openssl
+                pkgs.jq
+                pkgs.curl
+                pkgs.gawk
+                pkgs.unstable.kubernetes
+                pkgs.systemd
+                pkgs.cri-tools
+                pkgs.mount
+                pkgs.util-linux
+                pkgs.iproute2
+              ]
+              ++ pathPackages;
+              description = "Join Kubernetes cluster";
+              documentation = [ "https://kubernetes.io/docs" ];
+              after = [
+                "crio.service"
+                "init-kubernetes-cluster.service"
+              ];
+              wantedBy = [ "multi-user.target" ];
+              enableStrictShellChecks = true;
 
-        kubelet = {
-          description = "Kubelet";
-          documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
-          requires = [ "crio.service" ];
-          path = [
-            pkgs.unstable.kubernetes
-            pkgs.coreutils
-            pkgs.mount
-            pkgs.util-linux
-            pkgs.bash
-          ];
+              script =
+                let
+                  joinConfiguration = ''
+                    apiVersion: kubeadm.k8s.io/v1beta4
+                    kind: JoinConfiguration
+                    nodeRegistration:
+                      kubeletExtraArgs:
+                        - name: node-ip
+                          value: "$ipAddr"
+                    controlPlane:
+                      localAPIEndpoint:
+                        advertiseAddress: "$ipAddr"
+                        bindPort: ${toString cfg.apiServerPort}
+                    discovery:
+                      bootstrapToken:
+                        token: "$token"
+                        apiServerEndpoint: "$clusterAddr"
+                        caCertHashes:
+                          - "sha256:$caCertHash"
+                  '';
+                in
+                ''
+                  ${mkCertFunction}
+                  ${mkKubeconfigFunction}
 
-          serviceConfig = {
-            ExecCondition = ''
-              ${pkgs.bash}/bin/bash -c "${pkgs.coreutils}/bin/test -f /etc/kubernetes/kubelet.conf || ${pkgs.coreutils}/bin/test -f /etc/kubernetes/bootstrap-kubelet.conf"
-            '';
-            EnvironmentFile = "-/var/lib/kubelet/kubeadm-flags.env";
-            ExecStart = ''
-              ${pkgs.kubernetes}/bin/kubelet \
-                --config=/var/lib/kubelet/config.yaml \
-                --kubeconfig=/etc/kubernetes/kubelet.conf \
-                --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf \
-                --v=2 \
-                $KUBELET_KUBEADM_ARGS
-            '';
-            Restart = "on-failure";
-            RestartSec = "5";
-          };
-        };
-      };
+                  if systemctl is-active --quiet kubelet.service; then
+                    echo "Kubernetes cluster is already running on this node, skipping joining."
+                    exit 0
+                  fi
+
+                  ${waitForNetwork}
+                  ${waitForDns}
+
+                  clusterAddr="${clusterAddr}"
+                  ipAddr="${ipCommand}"
+
+                  if ${clusterTestCommand}; then
+                    ${mkTempSuperAdminKubeconfig}
+
+                    token=$(kubeadm token create --kubeconfig=/etc/kubernetes/temp.conf)
+                    caCertHash=$(openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl ec -pubin -outform der | openssl dgst -sha256 -hex | sed 's/^.* //')
+
+                    cat > /tmp/join-config.yaml <<-EOF
+                      ${indent 2 joinConfiguration}
+                    EOF
+
+                    kubeadm join --config /tmp/join-config.yaml
+
+                    ${restartTailscaleSvc}
+
+                    rm -f /tmp/join-config.yaml
+                  else
+                    echo "Kubernetes API server is not reachable at ${clusterAddr}, cannot join cluster."
+                    exit 1
+                  fi
+                '';
+
+              serviceConfig = {
+                Type = "oneshot";
+                RemainAfterExit = true;
+              };
+            };
+
+            relabel-kubernetes-node = {
+              path = [
+                pkgs.openssl
+                pkgs.jq
+                pkgs.curl
+                pkgs.gawk
+                pkgs.unstable.kubernetes
+                pkgs.systemd
+                pkgs.cri-tools
+                pkgs.mount
+                pkgs.util-linux
+                pkgs.iproute2
+              ]
+              ++ pathPackages;
+              description = "Relabel Kubernetes node";
+              documentation = [ "https://kubernetes.io/docs" ];
+              after = [
+                "init-kubernetes-cluster.service"
+                "join-kubernetes-cluster.service"
+              ];
+              wantedBy = [ "multi-user.target" ];
+              enableStrictShellChecks = true;
+
+              script = ''
+                ${mkCertFunction}
+                ${mkKubeconfigFunction}
+
+                if ! systemctl is-active --quiet kubelet.service; then
+                  echo "Kubernetes cluster is not initialized on this node, failing to relabel."
+                  exit 1
+                fi
+
+                ${waitForNetwork}
+                ${waitForDns}
+
+                clusterAddr="${clusterAddr}"
+
+                if ${clusterTestCommand}; then
+                  ${mkTempSuperAdminKubeconfig}
+
+                  if ${toBooleanString isOnlyControlNode}; then
+                    ${adminTempKubectl} taint node --overwrite=true ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule
+                    ${adminTempKubectl} taint node --overwrite=true ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule
+                    ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/worker=worker- || true
+                  else
+                    ${adminTempKubectl} taint node ${config.networking.hostName} CriticalAddonsOnly=true:NoSchedule- || true
+                    ${adminTempKubectl} taint node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:NoSchedule- || true
+                  fi
+
+                  if ${toBooleanString isOnlyWorkerNode}; then
+                    ${adminTempKubectl} label node ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane- || true
+                  fi
+
+                  if ${toBooleanString isControlAndWorker}; then
+                    ${adminTempKubectl} taint node --overwrite=true ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane:PreferNoSchedule
+                  fi
+
+                  if ${toBooleanString isControlPlane}; then
+                    ${adminTempKubectl} label node --overwrite=true ${config.networking.hostName} node-role.kubernetes.io/control-plane=control-plane
+                  fi
+
+                  if ${toBooleanString isWorker}; then
+                    ${adminTempKubectl} label node --overwrite=true ${config.networking.hostName} node-role.kubernetes.io/worker=worker
+                  fi
+
+                  ${adminTempKubectl} -n kube-system rollout restart deployment coredns || true
+                else
+                  echo "Kubernetes API server is not reachable at ${clusterAddr}, cannot relabel node."
+                  exit 1
+                fi
+              '';
+
+              serviceConfig = {
+                Type = "oneshot";
+                RemainAfterExit = true;
+              };
+            };
+
+            kubelet = {
+              description = "Kubelet";
+              documentation = [ "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/" ];
+              requires = [ "crio.service" ];
+              path = [
+                pkgs.unstable.kubernetes
+                pkgs.coreutils
+                pkgs.mount
+                pkgs.util-linux
+                pkgs.bash
+              ];
+
+              serviceConfig = {
+                ExecCondition = ''
+                  ${pkgs.bash}/bin/bash -c "${pkgs.coreutils}/bin/test -f /etc/kubernetes/kubelet.conf || ${pkgs.coreutils}/bin/test -f /etc/kubernetes/bootstrap-kubelet.conf"
+                '';
+                EnvironmentFile = "-/var/lib/kubelet/kubeadm-flags.env";
+                ExecStart = ''
+                  ${pkgs.kubernetes}/bin/kubelet \
+                    --config=/var/lib/kubelet/config.yaml \
+                    --kubeconfig=/etc/kubernetes/kubelet.conf \
+                    --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf \
+                    --v=2 \
+                    $KUBELET_KUBEADM_ARGS
+                '';
+                Restart = "on-failure";
+                RestartSec = "5";
+              };
+            };
+          })
+        ]
+      );
     })
     (lib.mkIf (cfg.mode == "tailscale" && (builtins.elem "control-plane" cfg.kind)) {
       nebulis.tailscale = {

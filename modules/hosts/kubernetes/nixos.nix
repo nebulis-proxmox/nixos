@@ -402,7 +402,9 @@ in
                   		${indent 2 joinConfiguration}
                   	EOF
 
-                    kubeadm join --config /tmp/join-config.yaml
+                    kubeadm join --config /tmp/join-config.yaml \
+                      --ignore-preflight-errors=Service-kubelet \
+                      --ignore-preflight-errors=FileAvailable--etc-kubernetes-pki-ca.crt
 
                     ${toString restartTailscaleSvc}
 

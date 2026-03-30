@@ -314,7 +314,7 @@ in
                   --node-name="${config.networking.hostName}" \
                   --skip-certificate-key-print \
                   --skip-token-print \
-                  --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start,addon"
+                  --skip-phases="preflight,certs,kubeconfig,etcd,control-plane,kubelet-start,addon/kube-proxy"
 
                 rm -f /tmp/init-config.yaml
               fi

@@ -480,7 +480,7 @@ in
                   ${adminTempKubectl} label node --overwrite=true ${config.networking.hostName} node-role.kubernetes.io/worker=worker
                 fi
 
-                ${adminTempKubectl} -n kube-system rollout restart deployment coredns
+                ${adminTempKubectl} -n kube-system rollout restart deployment coredns || true
               else
                 echo "Kubernetes API server is not reachable at ${clusterAddr}, cannot relabel node."
                 exit 1

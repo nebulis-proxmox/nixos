@@ -319,6 +319,11 @@ in
                 rm -f /tmp/init-config.yaml
               fi
             '';
+
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+          };
         };
 
         join-kubernetes-cluster = {
@@ -400,6 +405,11 @@ in
                 exit 1
               fi
             '';
+
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+          };
         };
 
         relabel-kubernetes-node =
@@ -476,6 +486,11 @@ in
                 exit 1
               fi
             '';
+
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+            };
           };
 
         kubelet = {

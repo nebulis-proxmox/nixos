@@ -11,6 +11,8 @@ let
   hetzner-nu1-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICXek+yTaovcgZdode516J17/JH1bImAINt0jaRbPqZK";
   t470s-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL3QKONcPWYUxgu1qkHZOn+j+daSMAuLAMsqpjqNobHp";
 
+  pangolin = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKiVf5eb3J5MUAdr5dkk3kLUs4FNt8n3w6YCWP9UrPLN ";
+
   # Groups
   nwmqpa = [
     nwmqpaMain
@@ -28,9 +30,9 @@ let
     t470s-nwmqpa
   ];
 
-  users = nwmqpa ++ mzlapq;
+  admins = nwmqpa ++ mzlapq;
 
-  all = machines ++ users;
+  all = machines ++ admins;
 
   k8s-control-plane = [
     utm-nwmqpa
@@ -60,23 +62,25 @@ in
   "virtualbox-nwmqpa.age".publicKeys = [
     virtualbox-nwmqpa
   ]
-  ++ users;
+  ++ admins;
 
   "utm-nwmqpa.age".publicKeys = [
     utm-nwmqpa
   ]
-  ++ users;
+  ++ admins;
 
   "hetzner-nu1-nwmqpa.age".publicKeys = [
     hetzner-nu1-nwmqpa
   ]
-  ++ users;
+  ++ admins;
 
   "t470s-nwmqpa.age".publicKeys = [
     t470s-nwmqpa
   ]
-  ++ users;
+  ++ admins;
 
+  "pangolin.age".publicKeys = [ pangolin ] ++ admins;
+  # Generic secrets
   "tailscaleKey.age".publicKeys = all;
 
   # CA keys

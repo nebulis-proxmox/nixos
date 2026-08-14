@@ -33,13 +33,27 @@ if echo "$chosen_identities" | grep -q "Not listed here"; then
     chosen_identities=$(nix run $rootdir/utils/gum -- choose --header "Select identities allowed to setup host $hostname:" $identities --no-limit)
 fi
 
+users=$(nix run "$rootdir/utils/find" -- users -maxdepth 1 -mindepth 1 -type "d" | xargs -I {} basename {})
+
+chosen_users=$(nix run $rootdir/utils/gum -- choose --header "Select users to install on $hostname:" $users "Not listed here" --no-limit)
+
+if echo "$chosen_users" | grep -q "Not listed here"; then
+    echo -e "$(tput setaf 208)Adding new user $(tput setaf 212)$hostname$(tput setaf 208).$(tput sgr0)"
+
+    $rootdir/scripts/add_user.sh
+
+    identities=$(cat $rootdir/secrets/secrets.nix | sed -nr 's/[[:space:]]+(.*)[[:space:]]+=[[:space:]]".*";/\1/p')
+
+    chosen_users=$(nix run $rootdir/utils/gum -- choose --header "Select users to install on $hostname:" $users "Not listed here" --no-limit)
+fi
+
 public_keys=$(echo "$chosen_identities" | xargs -I {} bash -c "cat $rootdir/secrets/secrets.nix | grep {} | sed -nr 's/[[:space:]]+.*[[:space:]]+=[[:space:]](\".*\");/\\1/p'")
 
 ssh-keygen -f "$tempdir/$hostname" -N "" -C ""
 
 awk \
     -v hostname=$hostname \
-    -v public_signature="$(cat ${tempdir}/${hostname}.pub)" \
+    -v public_signature="$(cat ${tempdir}/${hostname}.pub | cut -d ' ' -f 1,2)" \
     '!found && /# Groups/ { print "  " hostname " = " "\042" public_signature "\042;\012"; found=1 } 1' \
     $rootdir/secrets/secrets.nix \
     | nix run github:NixOS/nixfmt > $rootdir/secrets/secrets_formatted.nix
@@ -128,3 +142,14 @@ cat <<EOF > "$rootdir/hosts/nixos/$hostname/$hostname.nix"
 EOF
 
 nix run github:NixOS/nixfmt "$rootdir/hosts/nixos/$hostname/$hostname.nix"
+
+quoted_users=$(echo $chosen_users | xargs -I {} bash -c "echo '\"{}\"'")
+
+awk \
+  -v hostname="${hostname}" \
+  -v users="${quoted_users//$'\n'/ }" \
+  '!found && /# Other inventory configuration/ { print "  config.inventory.hosts." hostname ".users.enableUsers = [ " users " ];"; found=1 } 1' \
+  $rootdir/inventory.nix \
+  | nix run github:NixOS/nixfmt > $rootdir/inventory_formatted.nix
+
+mv $rootdir/inventory_formatted.nix $rootdir/inventory.nix

@@ -11,7 +11,7 @@ let
   hetzner-nu1-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICXek+yTaovcgZdode516J17/JH1bImAINt0jaRbPqZK";
   t470s-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL3QKONcPWYUxgu1qkHZOn+j+daSMAuLAMsqpjqNobHp";
 
-  pangolin = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKiVf5eb3J5MUAdr5dkk3kLUs4FNt8n3w6YCWP9UrPLN ";
+  pangolin = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ7uVB5uvDDM+07+C3zhqvxnGXx+/rPnyxXGilFYlfm8";
 
   # Groups
   nwmqpa = [

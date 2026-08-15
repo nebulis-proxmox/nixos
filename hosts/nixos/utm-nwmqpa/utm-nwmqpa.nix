@@ -10,56 +10,39 @@
   ];
   config = {
     networking.hostName = "utm-nwmqpa";
-    system.stateVersion = "25.11";
+    system.stateVersion = "26.05";
 
     nebulis = {
       autoUpgrade.enable = true;
 
       shared.base = {
         enable = true;
-        consoleKeyMap = "mac-fr";
-      };
-
-      kubernetes = {
-        enable = true;
-        mode = "tailscale";
-        nodeIndex = 0;
-        kind = [
-          "control-plane"
-          "worker"
-        ];
-      };
-
-      tailscale = {
-        enable = true;
-        useRoutingFeatures = "both";
-        extraUpFlags = [ ];
       };
 
       network = {
-        useBr0 = true;
-        physicalInterfaceName = "enp0s1";
+        useBr0 = false;
+        physicalInterfaceName = "enp1s0";
       };
 
-      timezone.paris = true;
-
-      # disk configuration
       disks = {
         enable = true;
         systemd-boot = true;
 
-        zfs = {
+        brtfs = {
           enable = true;
-          hostID = "a153c64f";
-          root = {
-            poolName = "rpool";
-            encrypt = false;
-            disk1 = "nvme0n1";
-            reservation = "5G";
-            impermanenceRoot = true;
-          };
+
           storage = {
-            enable = false;
+            enable = true;
+
+            disks = {
+              vda = {
+                boot.enable = true;
+                swap = {
+                  enable = true;
+                  size = "2G";
+                };
+              };
+            };
           };
         };
       };

@@ -5,35 +5,12 @@
   ...
 }:
 let
-  authorizedkeys = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDF1TFwXbqdC1UyG75q3HO1n7/L3yxpeRLIq2kQ9DalI"
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHYSJ9ywFRJ747tkhvYWFkx/Y9SkLqv3rb7T1UuXVBWo"
-  ];
   cfg = config.nebulis.disks;
   inherit (config.networking) hostName;
   inherit (config.nebulis.impermanence) dontBackup;
 in
 {
-  options.nebulis.disks = {
-    enable = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = ''
-        enable custom disk configuration
-      '';
-    };
-    isReinstalling = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = ''
-        am I reinstalling and want to save the storage pool + keep /persist/save unused so I can restore data
-      '';
-    };
-    systemd-boot = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-    };
-    zfs = {
+  options.nebulis.disks.zfs = {
       enable = lib.mkOption {
         type = lib.types.bool;
         default = false;
@@ -128,27 +105,8 @@ in
           '';
         };
       };
-    };
   };
-
   config = lib.mkMerge [
-    (lib.mkIf (cfg.enable && cfg.systemd-boot) {
-      # setup systemd-boot
-      boot.loader.systemd-boot.enable = true;
-      boot.loader.efi.canTouchEfiVariables = true;
-    })
-    (lib.mkIf cfg.enable {
-      # basic impermanence folders setup
-      environment.persistence."${dontBackup}" = {
-        hideMounts = true;
-        directories = [
-          "/var/lib/bluetooth"
-          "/var/lib/nixos"
-          "/var/lib/systemd/coredump"
-          "/etc/NetworkManager/system-connections"
-        ];
-      };
-    })
     (lib.mkIf cfg.zfs.enable {
       networking.hostId = cfg.zfs.hostID;
       environment.systemPackages = [ pkgs.zfs-prune-snapshots ];
@@ -453,11 +411,18 @@ in
       fileSystems."/home".neededForBoot = true;
     })
     (lib.mkIf (cfg.zfs.root.impermanenceRoot) {
-      boot.initrd.postResumeCommands =
-        #wipe / and /var on boot
-        lib.mkAfter ''
-          zfs rollback -r ${cfg.zfs.root.poolName}/root@empty
-        '';
+      boot.initrd.systemd.services = {
+        zfs-rollback-root = {
+          before = ["initrd-root-fs.target"];
+          path = [pkgs.zfs];
+          serviceConfig = {
+            ExecStart = (lib.mkAfter ''
+              ${pkgs.zfs}/bin/zfs rollback -r ${cfg.zfs.root.poolName}/root@empty
+            '');
+            Type = "oneshot";
+          };
+        };
+      };
     })
   ];
 }

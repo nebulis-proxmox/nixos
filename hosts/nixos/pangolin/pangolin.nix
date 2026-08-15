@@ -15,27 +15,34 @@
     nebulis = {
       autoUpgrade.enable = true;
 
+      shared.base = {
+        enable = true;
+      };
+
       network = {
         useBr0 = false;
-        physicalInterfaceName = "enp1s0";
+        physicalInterfaceName = "eth0";
       };
 
       disks = {
         enable = true;
         systemd-boot = true;
 
-        zfs = {
+        brtfs = {
           enable = true;
-          hostID = "a153c64f";
-          root = {
-            poolName = "rpool";
-            encrypt = false;
-            disk1 = "sda";
-            reservation = "30G";
-            impermanenceRoot = true;
-          };
+
           storage = {
-            enable = false;
+            enable = true;
+
+            disks = {
+              sda = {
+                boot.enable = true;
+                swap = {
+                  enable = true;
+                  size = "8G";
+                };
+              };
+            };
           };
         };
       };

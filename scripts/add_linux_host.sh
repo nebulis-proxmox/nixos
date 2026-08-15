@@ -135,6 +135,10 @@ cat <<EOF > "$rootdir/hosts/nixos/$hostname/$hostname.nix"
 
     nebulis = {
       autoUpgrade.enable = true;
+
+      shared.base = {
+        enable = true;
+      };
     };
   };
 }

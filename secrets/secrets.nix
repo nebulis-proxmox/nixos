@@ -51,6 +51,7 @@ in
     utm-nwmqpa
     hetzner-nu1-nwmqpa
     t470s-nwmqpa
+    pangolin
   ]
   ++ nwmqpa;
 

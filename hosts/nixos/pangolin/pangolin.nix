@@ -23,7 +23,7 @@ in
       letsEncryptEmail = "thomas.nicollet@nebulis.io";
     };
 
-    environment.persistence."${dontBackup}".directories = [ services.pangolin.dataDir ];
+    environment.persistence."${dontBackup}".directories = [ config.services.pangolin.dataDir ];
 
     nebulis = {
       autoUpgrade.enable = true;

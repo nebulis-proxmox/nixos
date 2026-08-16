@@ -21,6 +21,18 @@ in
       dataDir = "/var/lib/pangolin";
       baseDomain = "nebulis.dev";
       letsEncryptEmail = "thomas.nicollet@nebulis.io";
+      environmentFile = "/etc/nixos/secrets/pangolin.env";
+    };
+
+    age.secrets = {
+      "pangolin.env".file = inputs.self + "/secrets/pangolin.env.age";
+    };
+
+    environment.etc = {
+      "nixos/secrets/pangolin.env" = {
+        source = config.age.secrets."pangolin.env".path;
+        mode = "0600";
+      };
     };
 
     environment.persistence."${dontBackup}".directories = [ config.services.pangolin.dataDir ];

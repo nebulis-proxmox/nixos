@@ -84,6 +84,8 @@ in
   # Generic secrets
   "tailscaleKey.age".publicKeys = all;
 
+  "pangolin.env.age".publicKeys = all;
+
   # CA keys
   "sa-kubernetes.key.age".publicKeys = [
     nwmqpaMain

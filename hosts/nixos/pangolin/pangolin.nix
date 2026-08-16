@@ -1,8 +1,12 @@
 {
   lib,
   inputs,
+  config,
   ...
 }:
+let
+  inherit (config.nebulis.impermanence) dontBackup;
+in
 {
   imports = [
     # import custom modules
@@ -11,6 +15,15 @@
   config = {
     networking.hostName = "pangolin";
     system.stateVersion = "26.05";
+
+    services.pangolin = {
+      enable = true;
+      dataDir = "/var/lib/pangolin";
+      baseDomain = "nebulis.dev";
+      letsEncryptEmail = "thomas.nicollet@nebulis.io";
+    };
+
+    environment.persistence."${dontBackup}".directories = [ services.pangolin.dataDir ];
 
     nebulis = {
       autoUpgrade.enable = true;

@@ -28,6 +28,7 @@ let
     virtualbox-nwmqpa
     hetzner-nu1-nwmqpa
     t470s-nwmqpa
+    pangolin
   ];
 
   admins = nwmqpa ++ mzlapq;

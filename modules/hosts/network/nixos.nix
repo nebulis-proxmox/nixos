@@ -39,7 +39,7 @@ in
       networking.useDHCP = lib.mkForce true;
     })
     (lib.mkIf (!cfg.useTailscaleForSSH) {
-      networking.firewall.allowedTCPPorts = lib.mkForce [ 22 ];
+      networking.firewall.allowedTCPPorts = [ 22 ];
     })
   ];
 }

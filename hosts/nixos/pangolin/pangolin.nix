@@ -20,7 +20,8 @@ in
       enable = true;
       openFirewall = true;
       dataDir = "/var/lib/pangolin";
-      baseDomain = "nebulis.dev";
+      baseDomain = "pangolin.nebulis.dev";
+      dashboardDomain = "pangolin.nebulis.dev";
       letsEncryptEmail = "thomas.nicollet@nebulis.io";
       environmentFile = "/etc/nixos/secrets/pangolin.env";
     };

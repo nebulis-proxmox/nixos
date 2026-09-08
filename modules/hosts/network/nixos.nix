@@ -13,7 +13,6 @@ in
 
       networking.firewall = {
         enable = true;
-        allowedTCPPorts = lib.mkForce [ 6443 ];
         allowedUDPPorts = lib.mkForce [ (lib.mkIf config.nebulis.tailscale.enable config.nebulis.tailscale.udpListenPort) ];
         allowPing = true;
         checkReversePath = lib.mkForce false;

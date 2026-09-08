@@ -18,6 +18,7 @@ in
 
     services.pangolin = {
       enable = true;
+      openFirewall = true;
       dataDir = "/var/lib/pangolin";
       baseDomain = "nebulis.dev";
       letsEncryptEmail = "thomas.nicollet@nebulis.io";

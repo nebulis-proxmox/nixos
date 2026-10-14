@@ -1,0 +1,71 @@
+let
+  # Identities
+  nwmqpaMain = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGDdnrldIg416flniTapS18pv/IRwy6y03D+QmjF9euv";
+
+  nwmqpaDerived = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIT3juohQ7S8lU/8T5PEk8peVdDx9IjZCZtWrI30fMij";
+
+  mzlapqMain = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB9XyQ53ztHRg2u8gMTd1JN+WOeJ2WPe91rcc7gbzJNN";
+
+  utm-nwmqpa = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHMUPPWoKGmRxJmQq7sz8li1ffBrqMLB633yJa2LaLwh";
+
+  pangolin = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ7uVB5uvDDM+07+C3zhqvxnGXx+/rPnyxXGilFYlfm8";
+
+  # Groups
+  nwmqpa = [
+    nwmqpaMain
+    nwmqpaDerived
+  ];
+
+  mzlapq = [
+    mzlapqMain
+  ];
+
+  machines = [
+    utm-nwmqpa
+    pangolin
+  ];
+
+  admins = nwmqpa ++ mzlapq;
+
+  all = machines ++ admins;
+
+  k8s-control-plane = [
+    utm-nwmqpa
+  ];
+in
+{
+  # User keys
+
+  # Only this key need only the main key to be deciphered
+  "nwmqpaDerivedSshKey.age".publicKeys = [ nwmqpaMain ];
+
+  "nwmqpaPassword.age".publicKeys = [
+    utm-nwmqpa
+    pangolin
+  ]
+  ++ nwmqpa;
+
+  # Only this key need only the main key to be deciphered
+  "mzlapqDerivedSshKey.age".publicKeys = [ mzlapqMain ];
+
+  "mzlapqPassword.age".publicKeys = [ mzlapqMain ];
+  # Machine keys
+
+  "utm-nwmqpa.age".publicKeys = [
+    utm-nwmqpa
+  ]
+  ++ admins;
+
+  "pangolin.age".publicKeys = [ pangolin ] ++ admins;
+  # Generic secrets
+  "pangolin.env.age".publicKeys = all;
+
+  # CA keys
+  "sa-kubernetes.key.age".publicKeys = admins ++ k8s-control-plane;
+  "ca-root.key.age".publicKeys = admins ++ k8s-control-plane;
+  "ca-intermediate.key.age".publicKeys = admins ++ k8s-control-plane;
+  "ca-kubernetes.key.age".publicKeys = admins ++ k8s-control-plane;
+  "ca-etcd.key.age".publicKeys = admins ++ k8s-control-plane;
+  "ca-kubernetes-front-proxy.key.age".publicKeys = admins ++ k8s-control-plane;
+  # END_SECRETS
+}

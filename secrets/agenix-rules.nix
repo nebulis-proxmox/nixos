@@ -60,6 +60,8 @@ in
   # Generic secrets
   "pangolin.env.age".publicKeys = all;
 
+  "utm-nwmqpa.newt.env.age".publicKeys = [ utm-nwmqpa ] ++ admins;
+
   # CA keys
   "sa-kubernetes.key.age".publicKeys = admins ++ k8s-control-plane;
   "ca-root.key.age".publicKeys = admins ++ k8s-control-plane;

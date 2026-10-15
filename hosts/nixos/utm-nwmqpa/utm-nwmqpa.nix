@@ -13,6 +13,14 @@
     system.stateVersion = "26.05";
 
     nebulis = {
+      pangolin = {
+        newt = {
+          enable = true;
+          id = "v3530grjs9ho6ch";
+          endpoint = "https://pangolin.nebulis.dev";
+        };
+      };
+
       autoUpgrade.enable = true;
 
       shared.base = {
